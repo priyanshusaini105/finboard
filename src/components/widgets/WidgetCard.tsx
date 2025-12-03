@@ -187,7 +187,7 @@ export default function WidgetCard({
       </div>
 
       {/* Widget Content */}
-      <div className="p-4 h-full">
+      <div className="p-4 h-full overflow-y-auto">
         {error ? (
           <div className="text-red-500 dark:text-red-400 text-sm">
             Error: {error.message}

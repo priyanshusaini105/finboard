@@ -474,7 +474,7 @@ export default function WidgetTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto">{renderTableContent()}</div>
+      <div className="overflow-x-auto overflow-y-auto">{renderTableContent()}</div>
 
       {/* Pagination */}
       {totalPages > 1 && (

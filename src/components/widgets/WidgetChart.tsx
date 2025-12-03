@@ -243,7 +243,7 @@ export default function WidgetChart({
 
       {/* Chart Content */}
       <motion.div
-        className="p-4"
+        className="p-4 overflow-y-auto"
         layout
         transition={{ duration: 0.3, ease: "easeInOut" }}
       >
