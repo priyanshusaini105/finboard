@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Widget } from "../../types/widget";
 import { useWidgetData } from "../../hooks/useWidgetData";
+import { type ApiError } from "../../utils/errorHandler";
 
 interface WidgetTableProps {
   widget: Widget;
@@ -23,13 +24,16 @@ export default function WidgetTable({
   onConfigure,
   onDelete,
 }: WidgetTableProps) {
-  // Use TanStack Query for data fetching with caching
+  // Use TanStack Query for data fetching with enhanced error recovery
   const queryResult = useWidgetData(widget);
   const data = queryResult.data;
   const isLoading: boolean = queryResult.isLoading;
-  const error: Error | null = queryResult.error;
+  const error = queryResult.error;
+  const errorMessage = queryResult.errorMessage;
   const refetch = queryResult.refetch;
   const isFetching: boolean = queryResult.isFetching;
+  const isFromCache = queryResult.isFromCache;
+  const rateLimitInfo = queryResult.rateLimitInfo;
 
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -143,9 +147,74 @@ export default function WidgetTable({
   // Render table content with proper typing
   const renderTableContent = (): JSX.Element => {
     if (error) {
+      const typedError = error as ApiError;
+      const isRetryable = typedError?.isRetryable;
+      const category = typedError?.category || "UNKNOWN";
+
       return (
-        <div className="p-4 text-red-400 text-sm">
-          Error: {error instanceof Error ? error.message : String(error)}
+        <div className="p-4 space-y-3">
+          {/* Error Icon and Title */}
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <div className="flex items-center justify-center h-8 w-8 rounded-md bg-red-100 dark:bg-red-900/30">
+                <span className="text-lg">⚠️</span>
+              </div>
+            </div>
+            <div className="flex-1">
+              <h3 className="font-medium text-red-900 dark:text-red-100">
+                Failed to load data
+              </h3>
+              <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                {errorMessage}
+              </p>
+            </div>
+          </div>
+
+          {/* Error Details */}
+          <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-red-600 dark:text-red-400 font-medium">Error Type:</span>
+              <span className="text-red-800 dark:text-red-200">{category}</span>
+            </div>
+            {typedError?.statusCode && (
+              <div className="flex justify-between">
+                <span className="text-red-600 dark:text-red-400 font-medium">Status Code:</span>
+                <span className="text-red-800 dark:text-red-200">
+                  {typedError.statusCode}
+                </span>
+              </div>
+            )}
+            {typedError?.retryAfter && (
+              <div className="flex justify-between">
+                <span className="text-red-600 dark:text-red-400 font-medium">Retry After:</span>
+                <span className="text-red-800 dark:text-red-200">
+                  {typedError.retryAfter} seconds
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex space-x-2 pt-2">
+            {isRetryable ? (
+              <button
+                onClick={() => refetch()}
+                disabled={isFetching}
+                className="flex items-center space-x-1 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
+                <span>{isFetching ? "Retrying..." : "Retry"}</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => onConfigure(widget.id)}
+                className="flex items-center space-x-1 px-3 py-2 bg-amber-50 dark:bg-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 rounded text-sm font-medium transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Configure</span>
+              </button>
+            )}
+          </div>
         </div>
       );
     }
@@ -282,9 +351,26 @@ export default function WidgetTable({
           {(isLoading || isFetching) && (
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
           )}
+          {isFromCache && (
+            <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" title="Using cached data"></div>
+          )}
           <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-1 rounded">
             TABLE
           </span>
+          {rateLimitInfo && (
+            <span
+              className={`text-xs px-2 py-1 rounded font-medium ${
+                rateLimitInfo.tokensRemaining > 10
+                  ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                  : rateLimitInfo.tokensRemaining > 0
+                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                    : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+              }`}
+              title={`${rateLimitInfo.tokensRemaining} requests remaining`}
+            >
+              {rateLimitInfo.tokensRemaining} left
+            </span>
+          )}
         </div>
 
         <div className="flex items-center space-x-1">
@@ -292,6 +378,7 @@ export default function WidgetTable({
             onClick={() => refetch()}
             className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white rounded transition-colors"
             disabled={isLoading || isFetching}
+            title="Refresh data"
           >
             <RefreshCw
               className={`w-4 h-4 ${
@@ -302,12 +389,14 @@ export default function WidgetTable({
           <button
             onClick={() => onConfigure(widget.id)}
             className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white rounded transition-colors"
+            title="Configure widget"
           >
             <Settings className="w-4 h-4" />
           </button>
           <button
             onClick={() => onDelete(widget.id)}
             className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded transition-colors"
+            title="Delete widget"
           >
             <X className="w-4 h-4" />
           </button>
@@ -366,8 +455,11 @@ export default function WidgetTable({
       )}
 
       {!!data?.data && (
-        <div className="px-4 py-2 bg-slate-100 dark:bg-slate-700/50 text-xs text-slate-600 dark:text-slate-500 text-center">
-          Last updated: {new Date().toLocaleTimeString()}
+        <div className="px-4 py-2 bg-slate-100 dark:bg-slate-700/50 text-xs text-slate-600 dark:text-slate-500 text-center space-y-1">
+          <div>
+            Last updated: {new Date().toLocaleTimeString()}
+            {isFromCache && " (from cache)"}
+          </div>
         </div>
       )}
     </div>
