@@ -28,16 +28,17 @@ export default function SortableWidget({
   } = useSortable({ 
     id: widget.id,
     transition: {
-      duration: 200,
-      easing: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+      duration: 250,
+      easing: "cubic-bezier(0.25, 0.46, 0.45, 0.94)",
     },
   });
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition: transition || "transform 150ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+    transition: transition || "transform 250ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
     opacity: isDragging ? 0.5 : 1,
     cursor: isDragging ? "grabbing" : "grab",
+    willChange: isDragging ? "transform" : "auto",
   };
 
   return (
@@ -49,7 +50,7 @@ export default function SortableWidget({
       className={`${
         isDragging
           ? "z-50 shadow-2xl ring-2 ring-emerald-400 ring-opacity-60"
-          : "hover:shadow-md transition-shadow duration-300"
+          : ""
       }`}
     >
       <SortableWidgetContent

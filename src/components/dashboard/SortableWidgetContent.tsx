@@ -59,7 +59,7 @@ const SortableWidgetContent = memo(
       <div className={`relative ${isDragging ? "pointer-events-none" : ""}`}>
         {/* Drag handle indicator */}
         <div
-          className={`absolute top-2 left-2 z-10 transition-opacity ${
+          className={`absolute top-2 left-2 z-10 transition-opacity duration-200 ${
             isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-60"
           }`}
         >

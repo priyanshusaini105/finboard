@@ -48,7 +48,7 @@ export default function Dashboard() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5, // 5px movement to activate (Swapy-like response)
+        distance: 8, // 8px movement to activate for balanced responsiveness
       },
     }),
     useSensor(KeyboardSensor, {
