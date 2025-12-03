@@ -50,6 +50,8 @@ export default function SortableWidget({
           ? "z-50 shadow-2xl ring-2 ring-emerald-400 ring-opacity-60 rounded-lg" 
           : ""
       }`}
+
+      data-sortable="sortable-drag"
     >
       <SortableWidgetContent
         widget={widget}

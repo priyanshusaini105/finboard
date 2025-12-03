@@ -95,7 +95,7 @@ export default function WidgetCard({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-none hover:shadow-lg dark:hover:shadow-lg transition-shadow duration-300">
+    <div className="bg-white h-full dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-none hover:shadow-lg dark:hover:shadow-lg transition-shadow duration-300 ">
       {/* Widget Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center space-x-2">
@@ -135,14 +135,16 @@ export default function WidgetCard({
       </div>
 
       {/* Widget Content */}
-      <div className="p-4">
+      <div className="p-4 h-full">
         {error ? (
           <div className="text-red-500 dark:text-red-400 text-sm">
             Error: {error.message}
           </div>
         ) : isLoading ? (
-          <div className="text-slate-600 dark:text-slate-400 text-sm">
-            Loading...
+          <div className="space-y-3">
+            <div className="h-4 bg-slate-200 dark:bg-slate-600 rounded w-3/4"></div>
+            <div className="h-4 bg-slate-200 dark:bg-slate-600 rounded w-1/2"></div>
+            <div className="h-32 bg-slate-200 dark:bg-slate-600 rounded"></div>
           </div>
         ) : data?.data ? (
           <div className="space-y-4">

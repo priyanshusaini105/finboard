@@ -169,3 +169,8 @@
 .dragging-smooth {
   animation: smoothDragEnter 150ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
+
+
+[data-sortable="sortable-drag"] .relative{
+  height:100%;
+}

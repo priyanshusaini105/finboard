@@ -151,7 +151,53 @@ export default function WidgetTable({
     }
 
     if (isLoading) {
-      return <div className="p-4 text-slate-400 text-sm">Loading...</div>;
+      return (
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-none animate-pulse">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+            <div className="flex items-center space-x-2">
+              <div className="h-4 bg-slate-200 dark:bg-slate-600 rounded w-32"></div>
+              <div className="px-2 py-1 bg-slate-200 dark:bg-slate-600 rounded text-xs">
+                TABLE
+              </div>
+            </div>
+            <div className="flex space-x-1">
+              <div className="w-8 h-8 bg-slate-200 dark:bg-slate-600 rounded"></div>
+              <div className="w-8 h-8 bg-slate-200 dark:bg-slate-600 rounded"></div>
+              <div className="w-8 h-8 bg-slate-200 dark:bg-slate-600 rounded"></div>
+            </div>
+          </div>
+          {/* Search bar */}
+          <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+            <div className="h-10 bg-slate-200 dark:bg-slate-600 rounded"></div>
+          </div>
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-slate-50 dark:bg-slate-700/50">
+                <tr>
+                  {[1, 2, 3, 4].map((i) => (
+                    <th key={i} className="px-4 py-3">
+                      <div className="h-4 bg-slate-200 dark:bg-slate-600 rounded w-20"></div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i}>
+                    {[1, 2, 3, 4].map((j) => (
+                      <td key={j} className="px-4 py-3">
+                        <div className="h-4 bg-slate-200 dark:bg-slate-600 rounded w-16"></div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
     }
 
     if (paginatedData.length === 0) {
