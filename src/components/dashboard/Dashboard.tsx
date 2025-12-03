@@ -1,7 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Widget, WidgetType } from "../../types/widget";
+import { useEffect } from "react";
+import { Widget, WidgetType, WidgetConfig } from "../../types/widget";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
+
+import {
+  addWidget,
+  updateWidget,
+  deleteWidget,
+  reorderWidgets,
+  loadWidgetsFromStorage,
+} from "../../store/slices/widgetsSlice";
+import {
+  openAddModal,
+  openEditModal,
+  closeModal,
+} from "../../store/slices/dashboardSlice";
 import {
   DndContext,
   closestCenter,
@@ -17,18 +31,22 @@ import {
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
 import DashboardHeader from "./DashboardHeader";
+import AddWidgetModal from "./AddWidgetModal";
 import AddWidgetCard from "./AddWidgetCard";
 import SortableWidget from "./SortableWidget";
 
 export default function Dashboard() {
-  const [widgets, setWidgets] = useState<Widget[]>([]);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const dispatch = useAppDispatch();
+  const widgets = useAppSelector((state) => state.widgets.items);
+  const { isAddModalOpen, editingWidget } = useAppSelector(
+    (state) => state.dashboard
+  );
 
   // Drag and drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 8, // 8px movement required to start drag
       },
     }),
     useSensor(KeyboardSensor, {
@@ -36,72 +54,90 @@ export default function Dashboard() {
     })
   );
 
-  // Initialize with dummy widgets
+  // Load widgets from localStorage on mount
   useEffect(() => {
-    const initialWidgets: Widget[] = [
-      {
-        id: "widget-1",
-        title: "Stock Price",
-        type: WidgetType.CARD,
-        refreshInterval: 30,
-        position: { x: 0, y: 0 },
-        size: { width: 1, height: 1 },
-      },
-      {
-        id: "widget-2",
-        title: "Market Trending",
-        type: WidgetType.TABLE,
-        refreshInterval: 30,
-        position: { x: 0, y: 1 },
-        size: { width: 3, height: 2 },
-      },
-      {
-        id: "widget-3",
-        title: "RELIANCE Stock Chart",
-        type: WidgetType.CHART,
-        refreshInterval: 30,
-        position: { x: 0, y: 3 },
-        size: { width: 2, height: 2 },
-      },
-      {
-        id: "widget-4",
-        title: "Crypto Value",
-        type: WidgetType.CARD,
-        refreshInterval: 30,
-        position: { x: 1, y: 0 },
-        size: { width: 1, height: 1 },
-      },
-      {
-        id: "widget-5",
-        title: "Market Index",
-        type: WidgetType.CARD,
-        refreshInterval: 30,
-        position: { x: 2, y: 0 },
-        size: { width: 1, height: 1 },
-      },
-    ];
-    setWidgets(initialWidgets);
-  }, []);
+    const savedWidgets = localStorage.getItem("dashboard-widgets");
+    if (savedWidgets) {
+      try {
+        const parsedWidgets = JSON.parse(savedWidgets);
+        dispatch(loadWidgetsFromStorage(parsedWidgets));
+      } catch (error) {
+        console.error("Failed to load saved widgets:", error);
+      }
+    }
+  }, [dispatch]);
+
+  // Save widgets to localStorage whenever widgets change
+  useEffect(() => {
+    localStorage.setItem("dashboard-widgets", JSON.stringify(widgets));
+  }, [widgets]);
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
 
-  const addWidgetHandler = () => {
-    const newWidget: Widget = {
-      id: generateId(),
-      title: `Widget ${widgets.length + 1}`,
-      type: [WidgetType.CARD, WidgetType.TABLE, WidgetType.CHART][
-        Math.floor(Math.random() * 3)
-      ],
-      refreshInterval: 30,
-      position: { x: 0, y: widgets.length },
-      size: { width: 1, height: 1 },
-    };
-    setWidgets([...widgets, newWidget]);
-    setIsAddModalOpen(false);
+  const addWidgetHandler = (config: WidgetConfig) => {
+    if (editingWidget) {
+      // Update existing widget
+      dispatch(updateWidget({ id: editingWidget.id, config }));
+      // Fetch updated data
+      const updatedWidget = {
+        ...editingWidget,
+        title: config.name,
+        type:
+          config.displayMode === "card"
+            ? WidgetType.CARD
+            : config.displayMode === "table"
+            ? WidgetType.TABLE
+            : WidgetType.CHART,
+        apiUrl: config.apiUrl,
+        refreshInterval: config.refreshInterval,
+        selectedFields: config.selectedFields,
+        headers: config.headers,
+      };
+    } else {
+      // Create new widget
+      const id = generateId();
+
+      // Create the widget object that matches what we're adding to Redux
+      const newWidget: Widget = {
+        id,
+        title: config.name,
+        type:
+          config.displayMode === "card"
+            ? WidgetType.CARD
+            : config.displayMode === "table"
+            ? WidgetType.TABLE
+            : WidgetType.CHART,
+        apiUrl: config.apiUrl,
+        refreshInterval: config.refreshInterval,
+        selectedFields: config.selectedFields,
+        headers: config.headers,
+        position: { x: 0, y: 0 },
+        size: { width: 1, height: 1 },
+        isLoading: true,
+      };
+
+      // Add widget to Redux store
+      dispatch(addWidget({ config, id }));
+    }
+    dispatch(closeModal());
+  };
+
+  const refreshWidget = (widgetId: string) => {
+    // TanStack Query handles refresh via the refetch function in each widget component
+    console.log(
+      `Refresh request for widget: ${widgetId} - handled by TanStack Query`
+    );
+  };
+
+  const configureWidget = (widgetId: string) => {
+    const widget = widgets.find((w) => w.id === widgetId);
+    if (widget) {
+      dispatch(openEditModal(widget));
+    }
   };
 
   const deleteWidgetHandler = (widgetId: string) => {
-    setWidgets(widgets.filter((w) => w.id !== widgetId));
+    dispatch(deleteWidget(widgetId));
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -110,22 +146,14 @@ export default function Dashboard() {
     if (active.id !== over?.id) {
       const oldIndex = widgets.findIndex((item) => item.id === active.id);
       const newIndex = widgets.findIndex((item) => item.id === over?.id);
-
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const newWidgets = [...widgets];
-        [newWidgets[oldIndex], newWidgets[newIndex]] = [
-          newWidgets[newIndex],
-          newWidgets[oldIndex],
-        ];
-        setWidgets(newWidgets);
-      }
+      dispatch(reorderWidgets({ oldIndex, newIndex }));
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <DashboardHeader
-        onAddWidget={() => setIsAddModalOpen(true)}
+        onAddWidget={() => dispatch(openAddModal())}
         widgetCount={widgets.length}
       />
 
@@ -153,11 +181,11 @@ export default function Dashboard() {
                 Build Your Finance Dashboard
               </h2>
               <p className="text-slate-600 dark:text-slate-400 mb-6 max-w-md">
-                Create custom widgets to track stocks, crypto, market data - in
-                real-time.
+                Create custom widgets by connecting to any finance API. Track
+                stocks, crypto, market data - in real-time.
               </p>
               <button
-                onClick={() => setIsAddModalOpen(true)}
+                onClick={() => dispatch(openAddModal())}
                 className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-lg transition-colors"
               >
                 Add Your First Widget
@@ -186,8 +214,8 @@ export default function Dashboard() {
                       <SortableWidget
                         key={widget.id}
                         widget={widget}
-                        onRefresh={() => {}}
-                        onConfigure={() => {}}
+                        onRefresh={refreshWidget}
+                        onConfigure={configureWidget}
                         onDelete={deleteWidgetHandler}
                       />
                     ))}
@@ -208,20 +236,27 @@ export default function Dashboard() {
                       <SortableWidget
                         key={widget.id}
                         widget={widget}
-                        onRefresh={() => {}}
-                        onConfigure={() => {}}
+                        onRefresh={refreshWidget}
+                        onConfigure={configureWidget}
                         onDelete={deleteWidgetHandler}
                       />
                     ))}
 
                   {/* Add Widget Card */}
-                  <AddWidgetCard onClick={() => setIsAddModalOpen(true)} />
+                  <AddWidgetCard onClick={() => dispatch(openAddModal())} />
                 </div>
               </SortableContext>
             </div>
           </DndContext>
         )}
       </main>
+
+      <AddWidgetModal
+        isOpen={isAddModalOpen}
+        onClose={() => dispatch(closeModal())}
+        onAddWidget={addWidgetHandler}
+        editingWidget={editingWidget}
+      />
     </div>
   );
 }

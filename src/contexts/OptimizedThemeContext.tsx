@@ -14,6 +14,7 @@ interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
+  mounted: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -22,11 +23,11 @@ interface ThemeProviderProps {
   children: ReactNode;
 }
 
-export function ThemeProvider({ children }: ThemeProviderProps) {
+export function OptimizedThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>("dark");
   const [mounted, setMounted] = useState(false);
 
-  // Load theme from localStorage on mount
+  // Prevent hydration mismatch by only reading localStorage after mount
   useEffect(() => {
     const savedTheme = localStorage.getItem("finboard-theme") as Theme;
     if (savedTheme && (savedTheme === "light" || savedTheme === "dark")) {
@@ -45,17 +46,14 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   // Apply theme to document
   useEffect(() => {
     if (mounted) {
-      console.log("🎨 Applying theme:", theme);
-      // Apply to both html and body elements to ensure compatibility
-      document.documentElement.classList.remove("light", "dark");
-      document.documentElement.classList.add(theme);
+      const root = window.document.documentElement;
+      root.classList.remove("light", "dark");
+      root.classList.add(theme);
       localStorage.setItem("finboard-theme", theme);
-      console.log("🎨 Document classes:", document.documentElement.className);
     }
   }, [theme, mounted]);
 
   const toggleTheme = () => {
-    console.log("🔄 Toggling theme from", theme);
     setThemeState((prev) => (prev === "light" ? "dark" : "light"));
   };
 
@@ -63,26 +61,23 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     setThemeState(newTheme);
   };
 
-  // Prevent hydration mismatch by not rendering until mounted
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
+  // Return a stable structure to prevent hydration mismatch
+  const value = {
+    theme: mounted ? theme : "dark", // Default to dark during SSR
+    toggleTheme,
+    setTheme,
+    mounted,
+  };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
-      {children}
-    </ThemeContext.Provider>
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
   );
 }
 
 export function useTheme() {
   const context = useContext(ThemeContext);
   if (context === undefined) {
-    throw new Error("useTheme must be used within a ThemeProvider");
+    throw new Error("useTheme must be used within an OptimizedThemeProvider");
   }
   return context;
 }

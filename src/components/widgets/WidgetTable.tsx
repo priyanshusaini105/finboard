@@ -10,6 +10,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Widget } from "../../types/widget";
+import { useWidgetData } from "../../hooks/useWidgetData";
 
 interface WidgetTableProps {
   widget: Widget;
@@ -24,75 +25,90 @@ export default function WidgetTable({
   onConfigure,
   onDelete,
 }: WidgetTableProps) {
+  // Use TanStack Query for data fetching with caching
+  const { data, isLoading, error, refetch, isFetching } = useWidgetData(widget);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
-  // Dummy data for table
-  const dummyTableData = [
-    {
-      symbol: "TCS",
-      price: 3850.50,
-      change: 45.25,
-      percent: "1.19%",
-      volume: "2.5M",
-      high: 3920,
-      low: 3800,
-    },
-    {
-      symbol: "RELIANCE",
-      price: 2850.50,
-      change: 125.75,
-      percent: "4.62%",
-      volume: "5.2M",
-      high: 2950,
-      low: 2750,
-    },
-    {
-      symbol: "INFY",
-      price: 1650.25,
-      change: -32.50,
-      percent: "-1.93%",
-      volume: "3.8M",
-      high: 1720,
-      low: 1620,
-    },
-    {
-      symbol: "HCLTECH",
-      price: 1520.75,
-      change: 65.30,
-      percent: "4.49%",
-      volume: "1.2M",
-      high: 1560,
-      low: 1450,
-    },
-    {
-      symbol: "WIPRO",
-      price: 410.50,
-      change: -15.25,
-      percent: "-3.58%",
-      volume: "4.5M",
-      high: 440,
-      low: 405,
-    },
-    {
-      symbol: "BAJAJFINSV",
-      price: 1580.30,
-      change: 95.70,
-      percent: "6.44%",
-      volume: "890K",
-      high: 1620,
-      low: 1480,
-    },
-  ];
+  const getValueFromPath = (obj: any, path: string): any => {
+    // Handle array notation like "trending_stocks.top_gainers[].company_name"
+    if (path.includes("[]")) {
+      const [arrayPath, propertyPath] = path.split("[].");
+      const arrayData = arrayPath
+        .split(".")
+        .reduce((current, key) => current?.[key], obj);
+
+      if (Array.isArray(arrayData) && propertyPath) {
+        // Return array of the specific property from each object
+        return arrayData
+          .map((item) => item?.[propertyPath])
+          .filter((val) => val !== undefined);
+      }
+      return arrayData;
+    }
+
+    // Handle normal dot notation
+    return path.split(".").reduce((current, key) => current?.[key], obj);
+  };
+
+  const formatValue = (value: any): string => {
+    if (value === null || value === undefined) return "N/A";
+    if (Array.isArray(value)) {
+      return value.join(", ");
+    }
+    if (typeof value === "number") {
+      return value.toLocaleString();
+    }
+    return String(value);
+  };
+
+  // Convert data to array format for table display
+  const getTableData = () => {
+    if (!data?.data) return [];
+
+    // Data is already transformed by the Dashboard using transformData()
+    // It should be an array of objects ready for table display
+    if (Array.isArray(data.data)) {
+      return data.data;
+    }
+
+    // Fallback: if data is not an array, convert single object to array
+    if (typeof data.data === "object") {
+      return [data.data];
+    }
+
+    return [];
+  };
+  const tableData = getTableData();
 
   // Filter data based on search term
-  const filteredData = dummyTableData.filter((row) => {
+  const filteredData = tableData.filter((row: any) => {
     if (!searchTerm) return true;
-    return (
-      row.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      row.percent.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+
+    return widget.selectedFields?.some((field) => {
+      let value;
+
+      // Handle array notation fields
+      if (field.includes("[]")) {
+        const propertyName = field.split("[]").pop()?.replace(/^\./, "");
+        value = propertyName ? row[propertyName] : row;
+      } else if (field.includes(".")) {
+        // For non-array fields, use the original path logic
+        value = getValueFromPath(row, field);
+      } else {
+        // Direct property access
+        value = row[field];
+      }
+
+      // Skip N/A values and null/undefined values in search
+      if (!value || value === "N/A" || value === null || value === undefined) {
+        return false;
+      }
+
+      return String(value).toLowerCase().includes(searchTerm.toLowerCase());
+    });
   });
 
   // Pagination
@@ -111,7 +127,9 @@ export default function WidgetTable({
           <h3 className="font-medium text-slate-900 dark:text-white">
             {widget.title}
           </h3>
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          {(isLoading || isFetching) && (
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+          )}
           <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-1 rounded">
             TABLE
           </span>
@@ -119,10 +137,15 @@ export default function WidgetTable({
 
         <div className="flex items-center space-x-1">
           <button
-            onClick={() => onRefresh(widget.id)}
+            onClick={() => refetch()}
             className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white rounded transition-colors"
+            disabled={isLoading || isFetching}
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw
+              className={`w-4 h-4 ${
+                isLoading || isFetching ? "animate-spin" : ""
+              }`}
+            />
           </button>
           <button
             onClick={() => onConfigure(widget.id)}
@@ -146,73 +169,90 @@ export default function WidgetTable({
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500 dark:text-slate-400 w-4 h-4" />
             <input
               type="text"
-              placeholder="Search stocks..."
+              placeholder="Search table..."
               value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg pl-10 pr-3 py-2 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             />
           </div>
 
-          <div className="text-sm text-slate-600 dark:text-slate-400 ml-4">
-            {filteredData.length} of {dummyTableData.length} items
+          <div className="text-sm text-slate-600 dark:text-slate-400">
+            {filteredData.length} of {tableData.length} items
           </div>
         </div>
       </div>
 
       {/* Table Content */}
       <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-slate-100 dark:bg-slate-700">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Symbol
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Price
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Change
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                % Change
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Volume
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-            {paginatedData.map((row, index) => (
-              <tr
-                key={index}
-                className="hover:bg-slate-50 dark:hover:bg-slate-700/50"
-              >
-                <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white">
-                  {row.symbol}
-                </td>
-                <td className="px-4 py-3 text-sm text-slate-900 dark:text-white">
-                  ₹{row.price.toLocaleString()}
-                </td>
-                <td className={`px-4 py-3 text-sm font-medium ${
-                  row.change >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                }`}>
-                  {row.change >= 0 ? "+" : ""}₹{row.change.toFixed(2)}
-                </td>
-                <td className={`px-4 py-3 text-sm font-medium ${
-                  row.change >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                }`}>
-                  {row.percent}
-                </td>
-                <td className="px-4 py-3 text-sm text-slate-900 dark:text-white">
-                  {row.volume}
-                </td>
+        {error ? (
+          <div className="p-4 text-red-400 text-sm">Error: {error.message}</div>
+        ) : isLoading ? (
+          <div className="p-4 text-slate-400 text-sm">Loading...</div>
+        ) : paginatedData.length > 0 ? (
+          <table className="w-full">
+            <thead className="bg-slate-100 dark:bg-slate-700">
+              <tr>
+                {widget.selectedFields?.map((field) => {
+                  // Better field name formatting for display
+                  let displayName = field;
+                  if (field.includes("[]")) {
+                    displayName =
+                      field.split("[]").pop()?.replace(/^\./, "") || field;
+                  } else {
+                    displayName = field.split(".").pop() || field;
+                  }
+
+                  return (
+                    <th
+                      key={field}
+                      className="px-4 py-3 text-left text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider"
+                    >
+                      {displayName.replace(/_/g, " ")}
+                    </th>
+                  );
+                })}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+              {paginatedData.map((row: any, index: number) => (
+                <tr
+                  key={index}
+                  className="hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                >
+                  {widget.selectedFields?.map((field) => {
+                    let value;
+
+                    // Handle array notation fields
+                    if (field.includes("[]")) {
+                      const propertyName = field
+                        .split("[]")
+                        .pop()
+                        ?.replace(/^\./, "");
+                      value = propertyName ? row[propertyName] : row;
+                    } else if (field.includes(".")) {
+                      // For non-array fields, use the original path logic
+                      value = getValueFromPath(row, field);
+                    } else {
+                      // Direct property access
+                      value = row[field];
+                    }
+
+                    return (
+                      <td
+                        key={field}
+                        className="px-4 py-3 text-sm text-slate-900 dark:text-white"
+                      >
+                        {formatValue(value)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="p-4 text-slate-400 text-sm">No data available</div>
+        )}
       </div>
 
       {/* Pagination */}
@@ -245,9 +285,11 @@ export default function WidgetTable({
       )}
 
       {/* Last Updated */}
-      <div className="px-4 py-2 bg-slate-100 dark:bg-slate-700/50 text-xs text-slate-600 dark:text-slate-500 text-center">
-        Last updated: {new Date().toLocaleTimeString()}
-      </div>
+      {data?.data && (
+        <div className="px-4 py-2 bg-slate-100 dark:bg-slate-700/50 text-xs text-slate-600 dark:text-slate-500 text-center">
+          Last updated: {new Date().toLocaleTimeString()}
+        </div>
+      )}
     </div>
   );
 }
