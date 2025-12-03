@@ -9,7 +9,7 @@ interface DashboardPersistenceProps {
 
 /**
  * Component that wraps children and handles dashboard state persistence
- * Must be used inside Redux Provider
+ * Uses Zustand for state management with localStorage persistence
  */
 export function DashboardPersistence({
   children,

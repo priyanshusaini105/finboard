@@ -2,20 +2,7 @@
 
 import { useEffect } from "react";
 import { Widget, WidgetType, WidgetConfig } from "../../types/widget";
-import { useAppDispatch, useAppSelector } from "../../store/hooks";
-
-import {
-  addWidget,
-  updateWidget,
-  deleteWidget,
-  reorderWidgets,
-  loadWidgetsFromStorage,
-} from "../../store/slices/widgetsSlice";
-import {
-  openAddModal,
-  openEditModal,
-  closeModal,
-} from "../../store/slices/dashboardSlice";
+import { useStore } from "../../store/useStore";
 import {
   DndContext,
   closestCenter,
@@ -38,11 +25,19 @@ import AddWidgetCard from "./AddWidgetCard";
 import SortableWidget from "./SortableWidget";
 
 export default function Dashboard() {
-  const dispatch = useAppDispatch();
-  const widgets = useAppSelector((state) => state.widgets.items);
-  const { isAddModalOpen, editingWidget } = useAppSelector(
-    (state) => state.dashboard
-  );
+  const {
+    widgets,
+    isAddModalOpen,
+    editingWidget,
+    openAddModal,
+    openEditModal,
+    closeModal,
+    addWidget,
+    updateWidget,
+    deleteWidget,
+    reorderWidgets,
+    loadWidgetsFromStorage,
+  } = useStore();
 
   // Drag and drop sensors - optimized for smooth performance
   const sensors = useSensors(
@@ -62,12 +57,12 @@ export default function Dashboard() {
     if (savedWidgets) {
       try {
         const parsedWidgets = JSON.parse(savedWidgets);
-        dispatch(loadWidgetsFromStorage(parsedWidgets));
+        loadWidgetsFromStorage(parsedWidgets);
       } catch (error) {
         console.error("Failed to load saved widgets:", error);
       }
     }
-  }, [dispatch]);
+  }, [loadWidgetsFromStorage]);
 
   // Save widgets to localStorage whenever widgets change
   useEffect(() => {
@@ -79,7 +74,7 @@ export default function Dashboard() {
   const addWidgetHandler = (config: WidgetConfig) => {
     if (editingWidget) {
       // Update existing widget
-      dispatch(updateWidget({ id: editingWidget.id, config }));
+      updateWidget(editingWidget.id, config);
       // Fetch updated data
       const updatedWidget = {
         ...editingWidget,
@@ -99,7 +94,7 @@ export default function Dashboard() {
       // Create new widget
       const id = generateId();
 
-      // Create the widget object that matches what we're adding to Redux
+      // Create the widget object that matches what we're adding to store
       const newWidget: Widget = {
         id,
         title: config.name,
@@ -118,10 +113,10 @@ export default function Dashboard() {
         isLoading: true,
       };
 
-      // Add widget to Redux store
-      dispatch(addWidget({ config, id }));
+      // Add widget to store
+      addWidget(config, id);
     }
-    dispatch(closeModal());
+    closeModal();
   };
 
   const refreshWidget = (widgetId: string) => {
@@ -134,12 +129,12 @@ export default function Dashboard() {
   const configureWidget = (widgetId: string) => {
     const widget = widgets.find((w) => w.id === widgetId);
     if (widget) {
-      dispatch(openEditModal(widget));
+      openEditModal(widget);
     }
   };
 
   const deleteWidgetHandler = (widgetId: string) => {
-    dispatch(deleteWidget(widgetId));
+    deleteWidget(widgetId);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -148,14 +143,14 @@ export default function Dashboard() {
     if (active.id !== over?.id) {
       const oldIndex = widgets.findIndex((item) => item.id === active.id);
       const newIndex = widgets.findIndex((item) => item.id === over?.id);
-      dispatch(reorderWidgets({ oldIndex, newIndex }));
+      reorderWidgets(oldIndex, newIndex);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <DashboardHeader
-        onAddWidget={() => dispatch(openAddModal())}
+        onAddWidget={() => openAddModal()}
         widgetCount={widgets.length}
       />
 
@@ -187,7 +182,7 @@ export default function Dashboard() {
                 stocks, crypto, market data - in real-time.
               </p>
               <button
-                onClick={() => dispatch(openAddModal())}
+                onClick={() => openAddModal()}
                 className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-lg transition-colors"
               >
                 Add Your First Widget
@@ -250,7 +245,7 @@ export default function Dashboard() {
                     ))}
 
                   {/* Add Widget Card */}
-                  <AddWidgetCard onClick={() => dispatch(openAddModal())} />
+                  <AddWidgetCard onClick={() => openAddModal()} />
                 </div>
               </SortableContext>
             </div>
@@ -260,7 +255,7 @@ export default function Dashboard() {
 
       <AddWidgetModal
         isOpen={isAddModalOpen}
-        onClose={() => dispatch(closeModal())}
+        onClose={() => closeModal()}
         onAddWidget={addWidgetHandler}
         editingWidget={editingWidget}
       />

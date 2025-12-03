@@ -1,8 +1,6 @@
 "use client";
 
-import { Provider as ReduxProvider } from "react-redux";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { store } from "../store/index";
 import { ReactNode } from "react";
 import { ThemeProvider } from "../contexts/ThemeContext";
 
@@ -32,7 +30,7 @@ export function AppProviders({ children }: AppProvidersProps) {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <ReduxProvider store={store}>{children}</ReduxProvider>
+        {children}
       </QueryClientProvider>
     </ThemeProvider>
   );

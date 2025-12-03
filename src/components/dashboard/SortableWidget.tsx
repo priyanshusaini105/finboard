@@ -49,7 +49,7 @@ export default function SortableWidget({
       {...listeners}
       className={`${
         isDragging
-          ? "z-50 shadow-2xl ring-2 ring-emerald-400 ring-opacity-60"
+          ? "z-50 shadow-2xl ring-2 ring-emerald-400 ring-opacity-60 rounded-lg" 
           : ""
       }`}
     >

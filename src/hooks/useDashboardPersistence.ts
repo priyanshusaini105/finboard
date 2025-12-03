@@ -1,11 +1,5 @@
 import { useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { RootState, AppDispatch } from "../store";
-import {
-  setTheme,
-  setLayoutMode,
-  setGlobalRefreshInterval,
-} from "../store/slices/dashboardSlice";
+import { useStore } from "../store/useStore";
 
 const DASHBOARD_CONFIG_KEY = "finboard_dashboard_config";
 
@@ -20,8 +14,14 @@ interface DashboardConfig {
  * Call this hook in a component that wraps your dashboard
  */
 export function useDashboardPersistence() {
-  const dispatch = useDispatch<AppDispatch>();
-  const dashboardState = useSelector((state: RootState) => state.dashboard);
+  const {
+    theme,
+    layoutMode,
+    refreshInterval,
+    setTheme,
+    setLayoutMode,
+    setGlobalRefreshInterval,
+  } = useStore();
 
   // Load configuration from localStorage on mount
   useEffect(() => {
@@ -33,15 +33,15 @@ export function useDashboardPersistence() {
       const savedConfig = window.localStorage.getItem(DASHBOARD_CONFIG_KEY);
       if (savedConfig) {
         const config: DashboardConfig = JSON.parse(savedConfig);
-        if (config.theme) dispatch(setTheme(config.theme));
-        if (config.layoutMode) dispatch(setLayoutMode(config.layoutMode));
+        if (config.theme) setTheme(config.theme);
+        if (config.layoutMode) setLayoutMode(config.layoutMode);
         if (config.refreshInterval)
-          dispatch(setGlobalRefreshInterval(config.refreshInterval));
+          setGlobalRefreshInterval(config.refreshInterval);
       }
     } catch (error) {
       console.error("Error loading dashboard config from localStorage:", error);
     }
-  }, [dispatch]);
+  }, [setTheme, setLayoutMode, setGlobalRefreshInterval]);
 
   // Save configuration to localStorage whenever it changes
   useEffect(() => {
@@ -51,9 +51,9 @@ export function useDashboardPersistence() {
       }
 
       const configToSave: DashboardConfig = {
-        theme: dashboardState.theme,
-        layoutMode: dashboardState.layoutMode,
-        refreshInterval: dashboardState.refreshInterval,
+        theme,
+        layoutMode,
+        refreshInterval,
       };
 
       window.localStorage.setItem(
@@ -63,9 +63,5 @@ export function useDashboardPersistence() {
     } catch (error) {
       console.error("Error saving dashboard config to localStorage:", error);
     }
-  }, [
-    dashboardState.theme,
-    dashboardState.layoutMode,
-    dashboardState.refreshInterval,
-  ]);
+  }, [theme, layoutMode, refreshInterval]);
 }
