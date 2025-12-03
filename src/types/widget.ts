@@ -8,8 +8,11 @@ export interface Widget {
   originalData?: Record<string, unknown> | unknown[]; // Store original data for field mapping
   isLoading?: boolean;
   error?: string;
-  position: { x: number; y: number };
-  size: { width: number; height: number };
+  // Grid-based layout properties (Apitable-inspired)
+  x?: number; // Horizontal position (column index)
+  y: number; // Vertical position in grid units
+  w?: number; // Width in columns (default 2)
+  height: number; // Height in grid units (1 unit = 16px)
   selectedFields?: string[];
   headers?: Record<string, string>;
 }

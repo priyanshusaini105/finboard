@@ -28,6 +28,9 @@ interface DashboardState {
   deleteWidget: (id: string) => void;
   reorderWidgets: (oldIndex: number, newIndex: number) => void;
   loadWidgetsFromStorage: (widgets: Widget[]) => void;
+  // Grid layout actions
+  updateWidgetLayout: (widgets: Widget[]) => void;
+  updateWidgetHeight: (id: string, height: number) => void;
 }
 
 const DASHBOARD_CONFIG_KEY = "finboard_dashboard_config";
@@ -103,6 +106,22 @@ export const useStore = create<DashboardState>()(
       // Widget actions
       addWidget: (config: WidgetConfig, id: string) =>
         set((state) => {
+          // Calculate y position for new widget (stack at bottom)
+          const maxY = state.widgets.reduce((max, w) => {
+            const widgetBottom = w.y + w.height;
+            return widgetBottom > max ? widgetBottom : max;
+          }, 0);
+
+          // Default dimensions based on widget type
+          const defaultHeight = 
+            config.displayMode === "table" ? 20 : 
+            config.displayMode === "chart" ? 15 : 
+            10; // card
+          const defaultWidth =
+            config.displayMode === "table" ? 4 : // Table takes full width
+            config.displayMode === "chart" ? 2 :  // Chart takes half width
+            2; // Card takes half width
+
           const newWidget: Widget = {
             id,
             title: config.name,
@@ -116,8 +135,10 @@ export const useStore = create<DashboardState>()(
             refreshInterval: config.refreshInterval,
             selectedFields: config.selectedFields,
             headers: config.headers,
-            position: { x: 0, y: 0 },
-            size: { width: 1, height: 1 },
+            x: 0, // Position at start
+            y: maxY, // Position at bottom
+            w: defaultWidth, // Default width in columns
+            height: defaultHeight, // Default height in grid units
             isLoading: true,
           };
           return { widgets: [...state.widgets, newWidget] };
@@ -167,6 +188,17 @@ export const useStore = create<DashboardState>()(
         }),
 
       loadWidgetsFromStorage: (widgets: Widget[]) => set({ widgets }),
+
+      // Grid layout actions
+      updateWidgetLayout: (widgets: Widget[]) => 
+        set({ widgets }),
+
+      updateWidgetHeight: (id: string, height: number) =>
+        set((state) => ({
+          widgets: state.widgets.map((widget) =>
+            widget.id === id ? { ...widget, height } : widget
+          ),
+        })),
     }),
     {
       name: "finboard-storage",

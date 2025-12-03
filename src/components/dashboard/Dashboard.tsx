@@ -3,26 +3,10 @@
 import { useEffect } from "react";
 import { WidgetType, WidgetConfig } from "../../types/widget";
 import { useStore } from "../../store/useStore";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  MeasuringStrategy,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  rectSortingStrategy,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
 import DashboardHeader from "./DashboardHeader";
 import AddWidgetModal from "./AddWidgetModal";
 import AddWidgetCard from "./AddWidgetCard";
-import SortableWidget from "./SortableWidget";
+import WidgetGrid from "./WidgetGrid";
 
 export default function Dashboard() {
   const {
@@ -35,21 +19,9 @@ export default function Dashboard() {
     addWidget,
     updateWidget,
     deleteWidget,
-    reorderWidgets,
     loadWidgetsFromStorage,
+    updateWidgetLayout,
   } = useStore();
-
-  // Drag and drop sensors - optimized for smooth performance
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // 8px movement to activate for balanced responsiveness
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
 
   // Load widgets from localStorage on mount
   useEffect(() => {
@@ -85,7 +57,6 @@ export default function Dashboard() {
     closeModal();
   };
 
-
   const configureWidget = (widgetId: string) => {
     const widget = widgets.find((w) => w.id === widgetId);
     if (widget) {
@@ -97,14 +68,8 @@ export default function Dashboard() {
     deleteWidget(widgetId);
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (active.id !== over?.id) {
-      const oldIndex = widgets.findIndex((item) => item.id === active.id);
-      const newIndex = widgets.findIndex((item) => item.id === over?.id);
-      reorderWidgets(oldIndex, newIndex);
-    }
+  const handleLayoutChange = (updatedWidgets: typeof widgets) => {
+    updateWidgetLayout(updatedWidgets);
   };
 
   return (
@@ -150,64 +115,19 @@ export default function Dashboard() {
             </div>
           </div>
         ) : (
-          // Widgets with drag and drop - optimized for performance
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-            measuring={{
-              droppable: {
-                strategy: MeasuringStrategy.WhileDragging,
-              },
-            }}
-          >
-            <div className="space-y-6">
-              {/* Full width table widgets */}
-              <SortableContext
-                items={widgets
-                  .filter((w) => w.type === WidgetType.TABLE)
-                  .map((w) => w.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-6">
-                  {widgets
-                    .filter((w) => w.type === WidgetType.TABLE)
-                    .map((widget) => (
-                      <SortableWidget
-                        key={widget.id}
-                        widget={widget}
-                        onConfigure={configureWidget}
-                        onDelete={deleteWidgetHandler}
-                      />
-                    ))}
-                </div>
-              </SortableContext>
+          // Grid layout with drag and resize
+          <div className="space-y-6">
+            <WidgetGrid
+              widgets={widgets}
+              onLayoutChange={handleLayoutChange}
+              onConfigure={configureWidget}
+              onDelete={deleteWidgetHandler}
+              editable={true}
+            />
 
-              {/* Regular grid for cards and charts */}
-              <SortableContext
-                items={widgets
-                  .filter((w) => w.type !== WidgetType.TABLE)
-                  .map((w) => w.id)}
-                strategy={rectSortingStrategy}
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {widgets
-                    .filter((w) => w.type !== WidgetType.TABLE)
-                    .map((widget) => (
-                      <SortableWidget
-                        key={widget.id}
-                        widget={widget}
-                        onConfigure={configureWidget}
-                        onDelete={deleteWidgetHandler}
-                      />
-                    ))}
-
-                  {/* Add Widget Card */}
-                  <AddWidgetCard onClick={() => openAddModal()} />
-                </div>
-              </SortableContext>
-            </div>
-          </DndContext>
+            {/* Add Widget Card - positioned at the end */}
+            <AddWidgetCard onClick={() => openAddModal()} />
+          </div>
         )}
       </main>
 
