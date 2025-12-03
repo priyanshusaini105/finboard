@@ -11,12 +11,14 @@ interface WidgetCardProps {
   widget: Widget;
   onConfigure: (widgetId: string) => void;
   onDelete: (widgetId: string) => void;
+  hideHeader?: boolean;
 }
 
 export default function WidgetCard({
   widget,
   onConfigure,
   onDelete,
+  hideHeader = false,
 }: WidgetCardProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitle, setEditingTitle] = useState(widget.title);
@@ -127,6 +129,7 @@ export default function WidgetCard({
   return (
     <div className="bg-white h-full dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-none hover:shadow-lg dark:hover:shadow-lg transition-shadow duration-300 ">
       {/* Widget Header */}
+      {!hideHeader && (
       <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center space-x-2">
           {isEditingTitle ? (
@@ -160,7 +163,7 @@ export default function WidgetCard({
         </div>
 
         <div className="flex items-center space-x-1">
-          <button
+          {/* <button
             onClick={() => refetch()}
             className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white rounded transition-colors"
             disabled={isLoading || isFetching}
@@ -182,9 +185,10 @@ export default function WidgetCard({
             className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded transition-colors"
           >
             <X className="w-4 h-4" />
-          </button>
+          </button> */}
         </div>
       </div>
+      )}
 
       {/* Widget Content */}
       <div className="p-4 h-full overflow-y-auto">

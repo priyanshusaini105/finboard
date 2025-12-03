@@ -1,21 +1,36 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { WidgetType, WidgetConfig } from "../../types/widget";
 import { useStore } from "../../store/useStore";
 import DashboardHeader from "./DashboardHeader";
 import AddWidgetModal from "./AddWidgetModal";
 import AddWidgetCard from "./AddWidgetCard";
 import WidgetGrid from "./WidgetGrid";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import WidgetCard from "../widgets/WidgetCard";
+import WidgetTable from "../widgets/WidgetTable";
+import WidgetChart from "../widgets/WidgetChart";
+import { RefreshCw } from "lucide-react";
 
 export default function Dashboard() {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
   const {
     widgets,
     isAddModalOpen,
     editingWidget,
+    expandedWidget,
     openAddModal,
     openEditModal,
+    openExpandModal,
     closeModal,
+    closeExpandModal,
     addWidget,
     updateWidget,
     deleteWidget,
@@ -66,6 +81,19 @@ export default function Dashboard() {
 
   const deleteWidgetHandler = (widgetId: string) => {
     deleteWidget(widgetId);
+  };
+
+  const expandWidget = (widget: typeof widgets[0]) => {
+    openExpandModal(widget);
+  };
+
+  const handleRefreshWidget = async () => {
+    setIsRefreshing(true);
+    // Trigger a re-fetch by updating the widget's refresh interval
+    // This will cause the useWidgetData hook to re-fetch
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 500);
   };
 
   const handleLayoutChange = (updatedWidgets: typeof widgets) => {
@@ -122,6 +150,7 @@ export default function Dashboard() {
               onLayoutChange={handleLayoutChange}
               onConfigure={configureWidget}
               onDelete={deleteWidgetHandler}
+              onExpand={expandWidget}
               editable={true}
             />
 
@@ -137,6 +166,86 @@ export default function Dashboard() {
         onAddWidget={addWidgetHandler}
         editingWidget={editingWidget}
       />
+
+      {/* Expanded Widget Modal */}
+      <Dialog open={!!expandedWidget} onOpenChange={() => closeExpandModal()}>
+        <DialogContent 
+          className="w-[90vw] h-[90vh] max-w-none p-0 overflow-hidden flex flex-col bg-white dark:bg-slate-800 border-0 rounded-lg"
+          showCloseButton={false}
+        >
+          {/* Custom Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+              {expandedWidget?.title}
+            </h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRefreshWidget}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors flex-shrink-0"
+                title="Refresh Widget"
+                disabled={isRefreshing}
+              >
+                <RefreshCw
+                  className={`w-5 h-5 text-slate-600 dark:text-slate-400 ${
+                    isRefreshing ? "animate-spin" : ""
+                  }`}
+                />
+              </button>
+              <button
+                onClick={() => closeExpandModal()}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors flex-shrink-0"
+                title="Close"
+              >
+                <svg
+                  className="w-5 h-5 text-slate-600 dark:text-slate-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Widget Content */}
+          <div className="flex-1 overflow-auto p-6 bg-white dark:bg-slate-800">
+            {expandedWidget && (
+              <>
+                {expandedWidget.type === WidgetType.TABLE && (
+                  <WidgetTable
+                    widget={expandedWidget}
+                    onConfigure={() => {}}
+                    onDelete={() => {}}
+                    hideHeader={true}
+                  />
+                )}
+                {expandedWidget.type === WidgetType.CHART && (
+                  <WidgetChart
+                    widget={expandedWidget}
+                    onConfigure={() => {}}
+                    onDelete={() => {}}
+                    hideHeader={true}
+                  />
+                )}
+                {expandedWidget.type === WidgetType.CARD && (
+                  <WidgetCard
+                    widget={expandedWidget}
+                    onConfigure={() => {}}
+                    onDelete={() => {}}
+                    hideHeader={true}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { Widget, WidgetType } from "../../types/widget";
 import WidgetCard from "../widgets/WidgetCard";
 import WidgetTable from "../widgets/WidgetTable";
 import WidgetChart from "../widgets/WidgetChart";
-import { GripVertical, Settings, Trash2 } from "lucide-react";
+import { GripVertical, Settings, Trash2, Maximize, RefreshCw } from "lucide-react";
 
 interface WidgetItemProps {
   widget: Widget;
@@ -13,6 +13,7 @@ interface WidgetItemProps {
   editable?: boolean;
   onConfigure: (widgetId: string) => void;
   onDelete: (widgetId: string) => void;
+  onExpand: (widget: Widget) => void;
 }
 
 export default function WidgetItem({
@@ -21,7 +22,24 @@ export default function WidgetItem({
   editable = true,
   onConfigure,
   onDelete,
+  onExpand,
 }: WidgetItemProps) {
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+
+  const handleRefresh = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsRefreshing(true);
+    try {
+      // Trigger a re-fetch by dispatching a custom event
+      const event = new CustomEvent('refreshWidget', { detail: { widgetId: widget.id } });
+      window.dispatchEvent(event);
+    } catch (error) {
+      console.error('Failed to refresh widget:', error);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 1000);
+    }
+  };
+
   const renderWidgetContent = () => {
     switch (widget.type) {
       case WidgetType.TABLE:
@@ -82,6 +100,26 @@ export default function WidgetItem({
         {/* Right: Action Buttons */}
         {editable && (
           <div className="widget-drag-cancel flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleRefresh}
+              className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+              disabled={isRefreshing}
+              title="Refresh Widget"
+            >
+              <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-400 ${
+                isRefreshing ? "animate-spin" : ""
+              }`} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onExpand(widget);
+              }}
+              className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              title="Expand Widget"
+            >
+              <Maximize className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+            </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();

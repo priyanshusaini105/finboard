@@ -61,12 +61,14 @@ interface WidgetChartProps {
   widget: Widget;
   onConfigure: (widgetId: string) => void;
   onDelete: (widgetId: string) => void;
+  hideHeader?: boolean;
 }
 
 export default function WidgetChart({
   widget,
   onConfigure,
   onDelete,
+  hideHeader = false,
 }: WidgetChartProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitle, setEditingTitle] = useState(widget.title);
@@ -150,6 +152,7 @@ export default function WidgetChart({
       exit={{ opacity: 0, scale: 0.95 }}
     >
       {/* Widget Header */}
+      {!hideHeader && (
       <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center space-x-3">
           <div>
@@ -215,7 +218,7 @@ export default function WidgetChart({
         </div>
 
         <div className="flex items-center space-x-1">
-          <button
+          {/* <button
             onClick={() => refetch()}
             className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white rounded transition-colors"
             disabled={isLoading || isFetching}
@@ -237,13 +240,14 @@ export default function WidgetChart({
             className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded transition-colors"
           >
             <X className="w-4 h-4" />
-          </button>
+          </button> */}
         </div>
       </div>
+      )}
 
       {/* Chart Content */}
       <motion.div
-        className="p-4 overflow-y-auto"
+        className="p-4"
         layout
         transition={{ duration: 0.3, ease: "easeInOut" }}
       >

@@ -6,6 +6,7 @@ interface DashboardState {
   // Dashboard UI state
   isAddModalOpen: boolean;
   editingWidget: Widget | null;
+  expandedWidget: Widget | null;
   theme: "dark" | "light";
   layoutMode: "grid" | "list";
   refreshInterval: number;
@@ -16,7 +17,9 @@ interface DashboardState {
   // Dashboard actions
   openAddModal: () => void;
   openEditModal: (widget: Widget) => void;
+  openExpandModal: (widget: Widget) => void;
   closeModal: () => void;
+  closeExpandModal: () => void;
   setTheme: (theme: "dark" | "light") => void;
   setLayoutMode: (mode: "grid" | "list") => void;
   setGlobalRefreshInterval: (interval: number) => void;
@@ -72,6 +75,7 @@ export const useStore = create<DashboardState>()(
       // Initial state
       isAddModalOpen: false,
       editingWidget: null,
+      expandedWidget: null,
       theme: (savedConfig.theme as "dark" | "light") || "dark",
       layoutMode: (savedConfig.layoutMode as "grid" | "list") || "grid",
       refreshInterval: savedConfig.refreshInterval || 30,
@@ -90,10 +94,20 @@ export const useStore = create<DashboardState>()(
           editingWidget: widget,
         }),
 
+      openExpandModal: (widget: Widget) =>
+        set({
+          expandedWidget: widget,
+        }),
+
       closeModal: () =>
         set({
           isAddModalOpen: false,
           editingWidget: null,
+        }),
+
+      closeExpandModal: () =>
+        set({
+          expandedWidget: null,
         }),
 
       setTheme: (theme: "dark" | "light") => set({ theme }),

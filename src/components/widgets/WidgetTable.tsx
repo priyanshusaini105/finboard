@@ -18,12 +18,14 @@ interface WidgetTableProps {
   widget: Widget;
   onConfigure: (widgetId: string) => void;
   onDelete: (widgetId: string) => void;
+  hideHeader?: boolean;
 }
 
 export default function WidgetTable({
   widget,
   onConfigure,
   onDelete,
+  hideHeader = false,
 }: WidgetTableProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitle, setEditingTitle] = useState(widget.title);
@@ -372,6 +374,7 @@ export default function WidgetTable({
   return (
     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-none">
       {/* Widget Header */}
+      {!hideHeader && (
       <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center space-x-2">
           {isEditingTitle ? (
@@ -425,7 +428,7 @@ export default function WidgetTable({
         </div>
 
         <div className="flex items-center space-x-1">
-          <button
+          {/* <button
             onClick={() => refetch()}
             className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white rounded transition-colors"
             disabled={isLoading || isFetching}
@@ -450,9 +453,10 @@ export default function WidgetTable({
             title="Delete widget"
           >
             <X className="w-4 h-4" />
-          </button>
+          </button> */}
         </div>
       </div>
+      )}
 
       {/* Search and Controls */}
       <div className="p-4 border-b border-slate-700">

@@ -10,6 +10,7 @@ interface WidgetGridProps {
   onLayoutChange: (widgets: Widget[]) => void;
   onConfigure: (widgetId: string) => void;
   onDelete: (widgetId: string) => void;
+  onExpand: (widget: Widget) => void;
   editable?: boolean;
 }
 
@@ -30,6 +31,7 @@ export default function WidgetGrid({
   onLayoutChange,
   onConfigure,
   onDelete,
+  onExpand,
   editable = true,
 }: WidgetGridProps) {
   const [dragging, setDragging] = useState(false);
@@ -162,6 +164,7 @@ export default function WidgetGrid({
               editable={editable}
               onConfigure={onConfigure}
               onDelete={onDelete}
+              onExpand={onExpand}
             />
           </div>
         ))}
