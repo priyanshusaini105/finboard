@@ -12,8 +12,12 @@ import {
   BarChart,
   Bar,
   ComposedChart,
+  Area,
+  Scatter,
+  ScatterChart,
+  ZAxis,
 } from "recharts";
-import { RefreshCw, Settings, X, TrendingUp, TrendingDown } from "lucide-react";
+import { RefreshCw, Settings, X, TrendingUp, TrendingDown, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Widget } from "../../types/widget";
 import { getSymbolFromUrl } from "../../utils/apiAdapters";
@@ -24,30 +28,70 @@ import { useStore } from "../../store/useStore";
 // Chart data types
 interface ChartDataPoint {
   date: string;
-  price: number;
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
+  price?: number;
   volume?: number;
   dma50?: number | null;
   dma200?: number | null;
+  [key: string]: unknown;
 }
 
 interface TooltipPayload {
   dataKey: string;
   value: number;
   color: string;
+  payload?: ChartDataPoint;
+}
+
+// Chart type definitions
+type ChartType = 
+  | 'candlestick'
+  | 'ohlc'
+  | 'line'
+  | 'area'
+  | 'bar'
+  | 'line-volume'
+  | 'area-volume'
+  | 'scatter'
+  | 'multi-line';
+
+interface ChartOption {
+  id: ChartType;
+  name: string;
+  description: string;
+  requiredFields: string[];
+  category: 'candlestick' | 'standard' | 'combined';
 }
 
 // Custom tooltip for the chart - defined outside component
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: TooltipPayload[]; label?: string }) => {
   if (active && payload && payload.length) {
+    const dataPoint = payload[0]?.payload as ChartDataPoint;
+    
     return (
       <div className="bg-slate-800 p-3 rounded-lg border border-slate-600 shadow-lg">
-        <p className="text-slate-300 text-sm mb-2">{label}</p>
+        <p className="text-slate-300 text-sm mb-2 font-semibold">{label}</p>
+        
+        {/* Show OHLC data if available */}
+        {dataPoint?.open !== undefined && (
+          <div className="space-y-1 mb-2 pb-2 border-b border-slate-600">
+            <p className="text-sm text-green-400">Open: ₹{dataPoint.open.toLocaleString()}</p>
+            <p className="text-sm text-blue-400">High: ₹{dataPoint.high?.toLocaleString()}</p>
+            <p className="text-sm text-red-400">Low: ₹{dataPoint.low?.toLocaleString()}</p>
+            <p className="text-sm text-yellow-400">Close: ₹{dataPoint.close?.toLocaleString()}</p>
+          </div>
+        )}
+        
         {payload.map((entry, index: number) => (
           <p key={index} className="text-sm" style={{ color: entry.color }}>
-            {entry.dataKey === "price" && "₹"}
+            {entry.dataKey === "price" && "Price: ₹"}
             {entry.dataKey === "volume" && "Vol: "}
             {entry.dataKey === "dma50" && "50 DMA: ₹"}
             {entry.dataKey === "dma200" && "200 DMA: ₹"}
+            {!['price', 'volume', 'dma50', 'dma200', 'open', 'high', 'low', 'close'].includes(entry.dataKey) && `${entry.dataKey}: `}
             {entry.value?.toLocaleString()}
           </p>
         ))}
@@ -55,6 +99,115 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
     );
   }
   return null;
+};
+
+// Candlestick shape component
+const Candlestick = (props: any) => {
+  const { x, y, width, height, payload } = props;
+  
+  if (!payload || payload.open === undefined || payload.close === undefined || 
+      payload.high === undefined || payload.low === undefined) {
+    return null;
+  }
+
+  const { open, close, high, low } = payload;
+  const isGreen = close >= open;
+  const color = isGreen ? '#10b981' : '#ef4444';
+  
+  // Use the Bar's positioning (y is already scaled by Recharts)
+  // The Bar gives us the top of the high value
+  const ratio = height / (high - low);
+  
+  const highY = y; // Top of the bar (high value)
+  const lowY = y + height; // Bottom position based on height
+  const openY = y + (high - open) * ratio;
+  const closeY = y + (high - close) * ratio;
+  
+  const bodyTop = Math.min(openY, closeY);
+  const bodyHeight = Math.abs(openY - closeY) || 1;
+  const candleWidth = Math.max(width * 0.6, 2);
+  const candleX = x + (width - candleWidth) / 2;
+  
+  return (
+    <g>
+      {/* Wick (high-low line) */}
+      <line
+        x1={x + width / 2}
+        y1={highY}
+        x2={x + width / 2}
+        y2={lowY}
+        stroke={color}
+        strokeWidth={1}
+      />
+      {/* Body (open-close rectangle) */}
+      <rect
+        x={candleX}
+        y={bodyTop}
+        width={candleWidth}
+        height={bodyHeight}
+        fill={isGreen ? color : 'none'}
+        stroke={color}
+        strokeWidth={1.5}
+      />
+    </g>
+  );
+};
+
+// OHLC bar component
+const OHLCBar = (props: any) => {
+  const { x, y, width, height, payload } = props;
+  
+  if (!payload || payload.open === undefined || payload.close === undefined || 
+      payload.high === undefined || payload.low === undefined) {
+    return null;
+  }
+
+  const { open, close, high, low } = payload;
+  const isGreen = close >= open;
+  const color = isGreen ? '#10b981' : '#ef4444';
+  
+  // Use the Bar's positioning
+  const ratio = height / (high - low);
+  
+  const highY = y;
+  const lowY = y + height;
+  const openY = y + (high - open) * ratio;
+  const closeY = y + (high - close) * ratio;
+  
+  const halfWidth = width / 2;
+  const centerX = x + halfWidth;
+  
+  return (
+    <g>
+      {/* Vertical line (high-low) */}
+      <line
+        x1={centerX}
+        y1={highY}
+        x2={centerX}
+        y2={lowY}
+        stroke={color}
+        strokeWidth={2}
+      />
+      {/* Open tick (left) */}
+      <line
+        x1={x}
+        y1={openY}
+        x2={centerX}
+        y2={openY}
+        stroke={color}
+        strokeWidth={2}
+      />
+      {/* Close tick (right) */}
+      <line
+        x1={centerX}
+        y1={closeY}
+        x2={x + width}
+        y2={closeY}
+        stroke={color}
+        strokeWidth={2}
+      />
+    </g>
+  );
 };
 
 interface WidgetChartProps {
@@ -70,6 +223,8 @@ export default function WidgetChart({
 }: WidgetChartProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitle, setEditingTitle] = useState(widget.title);
+  const [selectedChartType, setSelectedChartType] = useState<ChartType>('line');
+  const [showChartMenu, setShowChartMenu] = useState(false);
   const { updateWidgetTitle } = useStore();
 
   // Use TanStack Query for data fetching with caching
@@ -89,12 +244,138 @@ export default function WidgetChart({
     }
   }, [data?.data]);
 
+  // Detect available fields in the data
+  const availableFields = useMemo(() => {
+    if (chartData.length === 0) return [];
+    const fields = new Set<string>();
+    chartData.forEach(point => {
+      Object.keys(point).forEach(key => {
+        if (key !== 'date' && typeof point[key] === 'number') {
+          fields.add(key);
+        }
+      });
+    });
+    return Array.from(fields);
+  }, [chartData]);
+
+  // Define available chart types based on data
+  const chartOptions = useMemo((): ChartOption[] => {
+    const hasOHLC = availableFields.includes('open') && 
+                    availableFields.includes('high') && 
+                    availableFields.includes('low') && 
+                    availableFields.includes('close');
+    const hasVolume = availableFields.includes('volume');
+    const hasPrice = availableFields.includes('price') || availableFields.includes('close');
+    const numericFields = availableFields.filter(f => !['volume', 'open', 'high', 'low', 'close'].includes(f));
+
+    const options: ChartOption[] = [];
+
+    // Candlestick charts (if OHLC data available)
+    if (hasOHLC) {
+      options.push({
+        id: 'candlestick',
+        name: 'Candlestick',
+        description: 'Traditional candlestick chart',
+        requiredFields: ['open', 'high', 'low', 'close'],
+        category: 'candlestick'
+      });
+      
+      options.push({
+        id: 'ohlc',
+        name: 'OHLC Bars',
+        description: 'Open-High-Low-Close bar chart',
+        requiredFields: ['open', 'high', 'low', 'close'],
+        category: 'candlestick'
+      });
+    }
+
+    // Standard charts
+    if (hasPrice || numericFields.length > 0) {
+      options.push({
+        id: 'line',
+        name: 'Line Chart',
+        description: 'Simple line chart',
+        requiredFields: hasPrice ? ['price'] : [numericFields[0]],
+        category: 'standard'
+      });
+
+      options.push({
+        id: 'area',
+        name: 'Area Chart',
+        description: 'Filled area chart',
+        requiredFields: hasPrice ? ['price'] : [numericFields[0]],
+        category: 'standard'
+      });
+
+      if (numericFields.length >= 2) {
+        options.push({
+          id: 'multi-line',
+          name: 'Multi-Line',
+          description: 'Multiple metrics on one chart',
+          requiredFields: numericFields.slice(0, 4),
+          category: 'standard'
+        });
+
+        options.push({
+          id: 'scatter',
+          name: 'Scatter Plot',
+          description: 'Correlation between metrics',
+          requiredFields: numericFields.slice(0, 2),
+          category: 'standard'
+        });
+      }
+    }
+
+    // Combined with volume
+    if (hasVolume && hasPrice) {
+      options.push({
+        id: 'line-volume',
+        name: 'Line + Volume',
+        description: 'Price line with volume bars',
+        requiredFields: ['price', 'volume'],
+        category: 'combined'
+      });
+
+      options.push({
+        id: 'area-volume',
+        name: 'Area + Volume',
+        description: 'Price area with volume bars',
+        requiredFields: ['price', 'volume'],
+        category: 'combined'
+      });
+    }
+
+    if (hasVolume) {
+      options.push({
+        id: 'bar',
+        name: 'Volume Bars',
+        description: 'Volume bar chart',
+        requiredFields: ['volume'],
+        category: 'standard'
+      });
+    }
+
+    return options;
+  }, [availableFields]);
+
+  // Auto-select best chart type based on available data
+  useMemo(() => {
+    if (chartOptions.length > 0) {
+      const hasOHLC = availableFields.includes('open');
+      if (hasOHLC && chartOptions.find(opt => opt.id === 'candlestick')) {
+        setSelectedChartType('candlestick');
+      } else if (!selectedChartType || !chartOptions.find(opt => opt.id === selectedChartType)) {
+        setSelectedChartType(chartOptions[0].id);
+      }
+    }
+  }, [chartOptions, availableFields]);
+
   // Calculate price change
   const priceChange = useMemo(() => {
     if (chartData.length < 2) return { change: 0, percentage: 0 };
 
-    const latestPrice = chartData[chartData.length - 1]?.price || 0;
-    const previousPrice = chartData[chartData.length - 2]?.price || 0;
+    const latestPrice = chartData[chartData.length - 1]?.close || chartData[chartData.length - 1]?.price || 0;
+    const previousPrice = chartData[chartData.length - 2]?.close || chartData[chartData.length - 2]?.price || 0;
     const change = latestPrice - previousPrice;
     const percentage = previousPrice ? (change / previousPrice) * 100 : 0;
 
@@ -102,7 +383,7 @@ export default function WidgetChart({
   }, [chartData]);
 
   const isPositive = priceChange.change >= 0;
-  const currentPrice = chartData[chartData.length - 1]?.price || 0;
+  const currentPrice = chartData[chartData.length - 1]?.close || chartData[chartData.length - 1]?.price || 0;
 
   // Extract stock symbol from API URL
   const stockSymbol = useMemo(() => {
@@ -133,6 +414,194 @@ export default function WidgetChart({
       e.stopPropagation();
       setEditingTitle(widget.title);
       setIsEditingTitle(false);
+    }
+  };
+
+  // Render chart based on selected type
+  const renderChart = () => {
+    const colors = ['#3B82F6', '#10b981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+    
+    switch (selectedChartType) {
+      case 'candlestick':
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
+              <YAxis stroke="#9CA3AF" fontSize={12} domain={['auto', 'auto']} tickFormatter={(v) => `₹${v}`} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar
+                dataKey="low"
+                stackId="candle"
+                fill="transparent"
+                isAnimationActive={false}
+              />
+              <Bar
+                dataKey="high"
+                stackId="candle"
+                shape={<Candlestick />}
+                isAnimationActive={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        );
+
+      case 'ohlc':
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
+              <YAxis stroke="#9CA3AF" fontSize={12} domain={['auto', 'auto']} tickFormatter={(v) => `₹${v}`} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar
+                dataKey="low"
+                stackId="ohlc"
+                fill="transparent"
+                isAnimationActive={false}
+              />
+              <Bar
+                dataKey="high"
+                stackId="ohlc"
+                shape={<OHLCBar />}
+                isAnimationActive={false}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        );
+
+      case 'area':
+        const priceKey = availableFields.includes('close') ? 'close' : 'price';
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData}>
+              <defs>
+                <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
+              <YAxis stroke="#9CA3AF" fontSize={12} domain={['dataMin - 10', 'dataMax + 10']} tickFormatter={(v) => `₹${v}`} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Area type="monotone" dataKey={priceKey} stroke="#3B82F6" fillOpacity={1} fill="url(#colorPrice)" name="Price" />
+              {chartData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
+              {chartData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
+            </ComposedChart>
+          </ResponsiveContainer>
+        );
+
+      case 'bar':
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
+              <YAxis stroke="#9CA3AF" fontSize={12} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
+              <Tooltip formatter={(value: number) => [`${(value / 1000000).toFixed(2)}M`, "Volume"]} />
+              <Legend />
+              <Bar dataKey="volume" fill="#6366F1" name="Volume" />
+            </BarChart>
+          </ResponsiveContainer>
+        );
+
+      case 'scatter':
+        const [xField, yField] = availableFields.filter(f => f !== 'volume').slice(0, 2);
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <ScatterChart>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey={xField} stroke="#9CA3AF" fontSize={12} name={xField} />
+              <YAxis dataKey={yField} stroke="#9CA3AF" fontSize={12} name={yField} />
+              <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+              <Legend />
+              <Scatter name={`${xField} vs ${yField}`} data={chartData} fill="#3B82F6" />
+            </ScatterChart>
+          </ResponsiveContainer>
+        );
+
+      case 'multi-line':
+        const lineFields = availableFields.filter(f => f !== 'volume').slice(0, 4);
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
+              <YAxis stroke="#9CA3AF" fontSize={12} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              {lineFields.map((field, idx) => (
+                <Line key={field} type="monotone" dataKey={field} stroke={colors[idx % colors.length]} strokeWidth={2} dot={false} name={field} />
+              ))}
+            </ComposedChart>
+          </ResponsiveContainer>
+        );
+
+      case 'line-volume':
+      case 'area-volume':
+        const mainKey = availableFields.includes('close') ? 'close' : 'price';
+        return (
+          <div className="space-y-4">
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData}>
+                  {selectedChartType === 'area-volume' && (
+                    <defs>
+                      <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                  )}
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
+                  <YAxis stroke="#9CA3AF" fontSize={12} domain={['dataMin - 10', 'dataMax + 10']} tickFormatter={(v) => `₹${v}`} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  {selectedChartType === 'area-volume' ? (
+                    <Area type="monotone" dataKey={mainKey} stroke="#3B82F6" fillOpacity={1} fill="url(#colorPrice)" name="Price" />
+                  ) : (
+                    <Line type="monotone" dataKey={mainKey} stroke="#3B82F6" strokeWidth={2} dot={false} name="Price" />
+                  )}
+                  {chartData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
+                  {chartData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="h-32">
+              <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Volume</h4>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="date" stroke="#9CA3AF" fontSize={10} />
+                  <YAxis stroke="#9CA3AF" fontSize={10} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
+                  <Tooltip formatter={(value: number) => [`${(value / 1000000).toFixed(2)}M`, "Volume"]} />
+                  <Bar dataKey="volume" fill="#6366F1" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        );
+
+      case 'line':
+      default:
+        const defaultKey = availableFields.includes('close') ? 'close' : availableFields.includes('price') ? 'price' : availableFields[0];
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
+              <YAxis stroke="#9CA3AF" fontSize={12} domain={['dataMin - 10', 'dataMax + 10']} tickFormatter={(v) => `₹${v}`} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Line type="monotone" dataKey={defaultKey} stroke="#3B82F6" strokeWidth={2} dot={false} name="Price" />
+              {chartData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
+              {chartData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
+            </ComposedChart>
+          </ResponsiveContainer>
+        );
     }
   };
 
@@ -215,6 +684,100 @@ export default function WidgetChart({
         </div>
 
         <div className="flex items-center space-x-1">
+          {/* Chart Type Selector */}
+          <div className="relative">
+            <button
+              onClick={() => setShowChartMenu(!showChartMenu)}
+              className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded transition-colors"
+              title="Change chart type"
+            >
+              <span className="capitalize">{chartOptions.find(opt => opt.id === selectedChartType)?.name || 'Chart'}</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+
+            {showChartMenu && (
+              <div className="absolute right-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+                {/* Candlestick Charts */}
+                {chartOptions.some(opt => opt.category === 'candlestick') && (
+                  <div className="p-2 border-b border-slate-200 dark:border-slate-700">
+                    <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase px-2 py-1">
+                      Candlestick Charts
+                    </div>
+                    {chartOptions.filter(opt => opt.category === 'candlestick').map(option => (
+                      <button
+                        key={option.id}
+                        onClick={() => {
+                          setSelectedChartType(option.id);
+                          setShowChartMenu(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                          selectedChartType === option.id
+                            ? 'bg-emerald-500 text-white'
+                            : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <div className="font-medium">{option.name}</div>
+                        <div className="text-xs opacity-75">{option.description}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Standard Charts */}
+                {chartOptions.some(opt => opt.category === 'standard') && (
+                  <div className="p-2 border-b border-slate-200 dark:border-slate-700">
+                    <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase px-2 py-1">
+                      Standard Charts
+                    </div>
+                    {chartOptions.filter(opt => opt.category === 'standard').map(option => (
+                      <button
+                        key={option.id}
+                        onClick={() => {
+                          setSelectedChartType(option.id);
+                          setShowChartMenu(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                          selectedChartType === option.id
+                            ? 'bg-blue-500 text-white'
+                            : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <div className="font-medium">{option.name}</div>
+                        <div className="text-xs opacity-75">{option.description}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Combined Charts */}
+                {chartOptions.some(opt => opt.category === 'combined') && (
+                  <div className="p-2">
+                    <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase px-2 py-1">
+                      Combined Charts
+                    </div>
+                    {chartOptions.filter(opt => opt.category === 'combined').map(option => (
+                      <button
+                        key={option.id}
+                        onClick={() => {
+                          setSelectedChartType(option.id);
+                          setShowChartMenu(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                          selectedChartType === option.id
+                            ? 'bg-purple-500 text-white'
+                            : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <div className="font-medium">{option.name}</div>
+                        <div className="text-xs opacity-75">{option.description}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <button
             onClick={() => refetch()}
             className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white rounded transition-colors"
@@ -272,125 +835,14 @@ export default function WidgetChart({
           ) : chartData.length > 0 ? (
             <motion.div
               key="chart"
-              className="space-y-4"
+              className={selectedChartType.includes('volume') ? 'space-y-0' : 'h-80'}
               layout
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
             >
-              {/* Price Chart */}
-              <motion.div
-                className="h-64"
-                layout
-                transition={{ duration: 0.3, ease: "easeInOut" }}
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis
-                      dataKey="date"
-                      stroke="#9CA3AF"
-                      fontSize={12}
-                      tickMargin={5}
-                    />
-                    <YAxis
-                      stroke="#9CA3AF"
-                      fontSize={12}
-                      domain={["dataMin - 10", "dataMax + 10"]}
-                      tickFormatter={(value) => `₹${value}`}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-
-                    {/* Price Line */}
-                    <Line
-                      type="monotone"
-                      dataKey="price"
-                      stroke="#3B82F6"
-                      strokeWidth={2}
-                      dot={false}
-                      name="Price"
-                    />
-
-                    {/* Moving Averages - only show if data is available */}
-                    {chartData.some(
-                      (d: ChartDataPoint) => d.dma50 !== null && d.dma50 !== undefined
-                    ) && (
-                      <Line
-                        type="monotone"
-                        dataKey="dma50"
-                        stroke="#F59E0B"
-                        strokeWidth={1}
-                        dot={false}
-                        name="50 DMA"
-                        strokeDasharray="5 5"
-                      />
-                    )}
-                    {chartData.some(
-                      (d: ChartDataPoint) => d.dma200 !== null && d.dma200 !== undefined
-                    ) && (
-                      <Line
-                        type="monotone"
-                        dataKey="dma200"
-                        stroke="#EF4444"
-                        strokeWidth={1}
-                        dot={false}
-                        name="200 DMA"
-                        strokeDasharray="5 5"
-                      />
-                    )}
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </motion.div>
-
-              {/* Volume Chart - only show if volume data is available */}
-              <AnimatePresence>
-                {chartData.some((d: ChartDataPoint) => d.volume !== undefined) && (
-                  <motion.div
-                    className="h-32"
-                    layout
-                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                    animate={{ opacity: 1, height: 128, marginTop: 16 }}
-                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                  >
-                    <h4 className="text-sm font-medium text-slate-300 mb-2">
-                      Volume
-                    </h4>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                        <XAxis
-                          dataKey="date"
-                          stroke="#9CA3AF"
-                          fontSize={10}
-                          tickMargin={5}
-                        />
-                        <YAxis
-                          stroke="#9CA3AF"
-                          fontSize={10}
-                          tickFormatter={(value) =>
-                            `${(value / 1000000).toFixed(1)}M`
-                          }
-                        />
-                        <Tooltip
-                          formatter={(value: number) => [
-                            `${(value / 1000000).toFixed(2)}M`,
-                            "Volume",
-                          ]}
-                          labelStyle={{ color: "#9CA3AF" }}
-                          contentStyle={{
-                            backgroundColor: "#1F2937",
-                            border: "1px solid #374151",
-                          }}
-                        />
-                        <Bar dataKey="volume" fill="#6366F1" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {renderChart()}
             </motion.div>
           ) : (
             <motion.div

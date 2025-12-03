@@ -18,13 +18,16 @@ export function useApiTesting() {
     try {
       // Check if we need to use proxy for external APIs
       const needsProxy =
-        apiUrl.includes("finnhub.io") || apiUrl.includes("alphavantage.co");
+        apiUrl.includes("finnhub.io") || 
+        apiUrl.includes("alphavantage.co") ||
+        apiUrl.includes("indianapi.in");
 
       let response;
 
       if (needsProxy) {
         // Use proxy for external APIs that have CORS issues
         const proxyUrl = `/api/proxy?url=${encodeURIComponent(apiUrl)}`;
+        console.log('[API Test] Using proxy with headers:', headers);
         response = await fetch(proxyUrl, {
           method: "GET",
           headers: {
@@ -34,6 +37,7 @@ export function useApiTesting() {
         });
       } else {
         // Direct request for APIs without CORS issues
+        console.log('[API Test] Direct request with headers:', headers);
         response = await fetch(apiUrl, {
           method: "GET",
           headers: {

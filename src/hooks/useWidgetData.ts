@@ -162,7 +162,8 @@ const fetchWidgetData = async (
     // Determine if we need to use proxy for external APIs
     const needsProxy =
       widget.apiUrl.includes("finnhub.io") ||
-      widget.apiUrl.includes("alphavantage.co");
+      widget.apiUrl.includes("alphavantage.co") ||
+      widget.apiUrl.includes("indianapi.in");
 
     const requestUrl = needsProxy
       ? `/api/proxy?url=${encodeURIComponent(widget.apiUrl)}`
@@ -179,6 +180,7 @@ const fetchWidgetData = async (
 
     let response: Response;
     try {
+      console.log('[Widget Data] Fetching with headers:', widget.headers);
       response = await fetch(requestUrl, {
         method: "GET",
         headers: {
@@ -239,18 +241,64 @@ const fetchWidgetData = async (
           let data: unknown;
           const columns = transformedResponse.columns;
 
+          // Filter columns based on selectedFields if specified
+          let filteredColumns = columns;
+          if (widget.selectedFields && widget.selectedFields.length > 0) {
+            filteredColumns = columns.filter(col => 
+              widget.selectedFields!.includes(col.key)
+            );
+            console.log(`🔽 [Fetch Widget] Filtered columns from ${columns.length} to ${filteredColumns.length}:`, {
+              originalColumns: columns.map(c => c.key),
+              selectedFields: widget.selectedFields,
+              filteredColumns: filteredColumns.map(c => c.key)
+            });
+          }
+
           // Transform based on widget type
           switch (widget.type) {
             case 'table':
               const tableData = getTableData(transformedResponse.data);
-              data = tableData.rows;
+              // Filter rows to only include selected fields
+              if (widget.selectedFields && widget.selectedFields.length > 0) {
+                data = tableData.rows.map((row: Record<string, unknown>) => {
+                  const filteredRow: Record<string, unknown> = {};
+                  widget.selectedFields!.forEach(field => {
+                    if (field in row) {
+                      filteredRow[field] = row[field];
+                    }
+                  });
+                  return filteredRow;
+                });
+                console.log(`🔽 [Fetch Widget] Filtered table rows to selected fields:`, {
+                  originalFieldCount: Object.keys(tableData.rows[0] || {}).length,
+                  filteredFieldCount: Object.keys((data as any[])[0] || {}).length
+                });
+              } else {
+                data = tableData.rows;
+              }
               console.log(`📋 [Fetch Widget] Table data prepared:`, {
                 rowCount: Array.isArray(data) ? data.length : 0,
                 firstRow: Array.isArray(data) && data.length > 0 ? data[0] : null
               });
               break;
             case 'chart':
-              data = getChartData(transformedResponse.data);
+              const chartData = getChartData(transformedResponse.data);
+              // Filter chart data to only include selected fields
+              if (widget.selectedFields && widget.selectedFields.length > 0 && Array.isArray(chartData)) {
+                data = chartData.map((row: Record<string, unknown>) => {
+                  const filteredRow: Record<string, unknown> = {};
+                  // Always include date field for x-axis
+                  if ('date' in row) filteredRow.date = row.date;
+                  widget.selectedFields!.forEach(field => {
+                    if (field in row) {
+                      filteredRow[field] = row[field];
+                    }
+                  });
+                  return filteredRow;
+                });
+              } else {
+                data = chartData;
+              }
               break;
             case 'card':
               data = getCardData(transformedResponse.data);
@@ -262,7 +310,7 @@ const fetchWidgetData = async (
           const result = {
             data,
             originalData: transformedResponse.data,
-            columns,
+            columns: filteredColumns,
             fromCache: false,
             useTransformedData: true,
             rateLimitInfo: rateLimitInfo || undefined,

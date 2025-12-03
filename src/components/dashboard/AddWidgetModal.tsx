@@ -307,7 +307,7 @@ export default function AddWidgetModal({
                         type="button"
                         onClick={() => {
                           setApiUrl(
-                            "https://finnhub.io/api/v1/stock/candle?symbol=AAPL&resolution=D&from=1631203200&to=1631289600&token=demo"
+                            "https://finnhub.io/api/v1/quote?symbol=AAPL&token=demo"
                           );
                           setWidgetName("AAPL Stock Chart");
                           setDisplayMode("chart");

@@ -155,7 +155,7 @@ function createEmptyDataset(): FinancialDataset {
 export function shouldTransformApi(apiUrl: string): boolean {
   // Skip transformation for specific URLs if needed
   const skipPatterns: string[] = [
-    // Add patterns to skip here if needed
+    '/quote?', // Finnhub quote API returns single object, no transformation needed
   ];
 
   return !skipPatterns.some(pattern => apiUrl.includes(pattern));
