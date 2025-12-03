@@ -24,11 +24,13 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  MeasuringStrategy,
 } from "@dnd-kit/core";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   rectSortingStrategy,
+  verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import DashboardHeader from "./DashboardHeader";
 import AddWidgetModal from "./AddWidgetModal";
@@ -42,11 +44,11 @@ export default function Dashboard() {
     (state) => state.dashboard
   );
 
-  // Drag and drop sensors
+  // Drag and drop sensors - optimized for smooth performance
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // 8px movement required to start drag
+        distance: 5, // 5px movement to activate (Swapy-like response)
       },
     }),
     useSensor(KeyboardSensor, {
@@ -193,11 +195,16 @@ export default function Dashboard() {
             </div>
           </div>
         ) : (
-          // Widgets with drag and drop
+          // Widgets with drag and drop - optimized for performance
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
+            measuring={{
+              droppable: {
+                strategy: MeasuringStrategy.WhileDragging,
+              },
+            }}
           >
             <div className="space-y-6">
               {/* Full width table widgets */}
@@ -205,7 +212,7 @@ export default function Dashboard() {
                 items={widgets
                   .filter((w) => w.type === WidgetType.TABLE)
                   .map((w) => w.id)}
-                strategy={rectSortingStrategy}
+                strategy={verticalListSortingStrategy}
               >
                 <div className="space-y-6">
                   {widgets
