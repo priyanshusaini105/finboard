@@ -77,7 +77,7 @@ export default function SortableWidget({
       className={`transition-all duration-200 ${
         isDragging
           ? "z-50 shadow-2xl scale-105 rotate-3 ring-2 ring-blue-500 ring-opacity-50"
-          : "hover:shadow-lg hover:scale-102"
+          : "hover:shadow-lg"
       }`}
     >
       <div className={`relative ${isDragging ? "pointer-events-none" : ""}`}>

@@ -13,9 +13,11 @@ import {
   ComposedChart,
 } from "recharts";
 import { RefreshCw, Settings, X, TrendingUp, TrendingDown } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Widget } from "../../types/widget";
 import { getSymbolFromUrl } from "../../utils/apiAdapters";
 import { useWidgetData } from "../../hooks/useWidgetData";
+import { ChartSkeleton } from "../ui/LoadingSkeletons";
 
 interface WidgetChartProps {
   widget: Widget;
@@ -35,12 +37,12 @@ export default function WidgetChart({
 
   // Transform API data for chart display using universal adapter
   const chartData = useMemo(() => {
-    if (!data?.data) return [];
+    if (!data?.data) return [] as ChartDataPoint[];
 
     try {
       // Data is already transformed by the Dashboard using transformData()
       // So we can use it directly
-      return Array.isArray(data.data) ? data.data : [];
+      return Array.isArray(data.data) ? (data.data as ChartDataPoint[]) : [];
     } catch (error) {
       console.error("Error using chart data:", error);
       return [];
@@ -70,13 +72,28 @@ export default function WidgetChart({
     return "STOCK";
   }, [widget.apiUrl]);
 
+  // Chart data types
+  interface ChartDataPoint {
+    date: string;
+    price: number;
+    volume?: number;
+    dma50?: number | null;
+    dma200?: number | null;
+  }
+
+  interface TooltipPayload {
+    dataKey: string;
+    value: number;
+    color: string;
+  }
+
   // Custom tooltip for the chart
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: TooltipPayload[]; label?: string }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-slate-800 p-3 rounded-lg border border-slate-600 shadow-lg">
           <p className="text-slate-300 text-sm mb-2">{label}</p>
-          {payload.map((entry: any, index: number) => (
+          {payload.map((entry, index: number) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
               {entry.dataKey === "price" && "₹"}
               {entry.dataKey === "volume" && "Vol: "}
@@ -92,7 +109,18 @@ export default function WidgetChart({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-none">
+    <motion.div
+      className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-none"
+      layout
+      layoutId={`widget-${widget.id}`}
+      transition={{
+        layout: { duration: 0.3, ease: "easeInOut" },
+        opacity: { duration: 0.2 }
+      }}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+    >
       {/* Widget Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center space-x-3">
@@ -164,122 +192,170 @@ export default function WidgetChart({
       </div>
 
       {/* Chart Content */}
-      <div className="p-4">
-        {error ? (
-          <div className="text-red-400 text-sm">Error: {error.message}</div>
-        ) : isLoading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            <span className="ml-3 text-slate-400">Loading chart data...</span>
-          </div>
-        ) : chartData.length > 0 ? (
-          <div className="space-y-4">
-            {/* Price Chart */}
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis
-                    dataKey="date"
-                    stroke="#9CA3AF"
-                    fontSize={12}
-                    tickMargin={5}
-                  />
-                  <YAxis
-                    stroke="#9CA3AF"
-                    fontSize={12}
-                    domain={["dataMin - 10", "dataMax + 10"]}
-                    tickFormatter={(value) => `₹${value}`}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-
-                  {/* Price Line */}
-                  <Line
-                    type="monotone"
-                    dataKey="price"
-                    stroke="#3B82F6"
-                    strokeWidth={2}
-                    dot={false}
-                    name="Price"
-                  />
-
-                  {/* Moving Averages - only show if data is available */}
-                  {chartData.some(
-                    (d: any) => d.dma50 !== null && d.dma50 !== undefined
-                  ) && (
-                    <Line
-                      type="monotone"
-                      dataKey="dma50"
-                      stroke="#F59E0B"
-                      strokeWidth={1}
-                      dot={false}
-                      name="50 DMA"
-                      strokeDasharray="5 5"
-                    />
-                  )}
-                  {chartData.some(
-                    (d: any) => d.dma200 !== null && d.dma200 !== undefined
-                  ) && (
-                    <Line
-                      type="monotone"
-                      dataKey="dma200"
-                      stroke="#EF4444"
-                      strokeWidth={1}
-                      dot={false}
-                      name="200 DMA"
-                      strokeDasharray="5 5"
-                    />
-                  )}
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Volume Chart - only show if volume data is available */}
-            {chartData.some((d: any) => d.volume !== undefined) && (
-              <div className="h-32">
-                <h4 className="text-sm font-medium text-slate-300 mb-2">
-                  Volume
-                </h4>
+      <motion.div
+        className="p-4"
+        layout
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <AnimatePresence mode="wait">
+          {error ? (
+            <motion.div
+              key="error"
+              className="text-red-400 text-sm"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+            >
+              Error: {error.message}
+            </motion.div>
+          ) : isLoading ? (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ChartSkeleton />
+            </motion.div>
+          ) : chartData.length > 0 ? (
+            <motion.div
+              key="chart"
+              className="space-y-4"
+              layout
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            >
+              {/* Price Chart */}
+              <motion.div
+                className="h-64"
+                layout
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+              >
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
+                  <ComposedChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis
                       dataKey="date"
                       stroke="#9CA3AF"
-                      fontSize={10}
+                      fontSize={12}
                       tickMargin={5}
                     />
                     <YAxis
                       stroke="#9CA3AF"
-                      fontSize={10}
-                      tickFormatter={(value) =>
-                        `${(value / 1000000).toFixed(1)}M`
-                      }
+                      fontSize={12}
+                      domain={["dataMin - 10", "dataMax + 10"]}
+                      tickFormatter={(value) => `₹${value}`}
                     />
-                    <Tooltip
-                      formatter={(value: any) => [
-                        `${(value / 1000000).toFixed(2)}M`,
-                        "Volume",
-                      ]}
-                      labelStyle={{ color: "#9CA3AF" }}
-                      contentStyle={{
-                        backgroundColor: "#1F2937",
-                        border: "1px solid #374151",
-                      }}
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+
+                    {/* Price Line */}
+                    <Line
+                      type="monotone"
+                      dataKey="price"
+                      stroke="#3B82F6"
+                      strokeWidth={2}
+                      dot={false}
+                      name="Price"
                     />
-                    <Bar dataKey="volume" fill="#6366F1" />
-                  </BarChart>
+
+                    {/* Moving Averages - only show if data is available */}
+                    {chartData.some(
+                      (d: ChartDataPoint) => d.dma50 !== null && d.dma50 !== undefined
+                    ) && (
+                      <Line
+                        type="monotone"
+                        dataKey="dma50"
+                        stroke="#F59E0B"
+                        strokeWidth={1}
+                        dot={false}
+                        name="50 DMA"
+                        strokeDasharray="5 5"
+                      />
+                    )}
+                    {chartData.some(
+                      (d: ChartDataPoint) => d.dma200 !== null && d.dma200 !== undefined
+                    ) && (
+                      <Line
+                        type="monotone"
+                        dataKey="dma200"
+                        stroke="#EF4444"
+                        strokeWidth={1}
+                        dot={false}
+                        name="200 DMA"
+                        strokeDasharray="5 5"
+                      />
+                    )}
+                  </ComposedChart>
                 </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-slate-400">
-            <p>No chart data available</p>
-          </div>
-        )}
-      </div>
-    </div>
+              </motion.div>
+
+              {/* Volume Chart - only show if volume data is available */}
+              <AnimatePresence>
+                {chartData.some((d: ChartDataPoint) => d.volume !== undefined) && (
+                  <motion.div
+                    className="h-32"
+                    layout
+                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                    animate={{ opacity: 1, height: 128, marginTop: 16 }}
+                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    <h4 className="text-sm font-medium text-slate-300 mb-2">
+                      Volume
+                    </h4>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis
+                          dataKey="date"
+                          stroke="#9CA3AF"
+                          fontSize={10}
+                          tickMargin={5}
+                        />
+                        <YAxis
+                          stroke="#9CA3AF"
+                          fontSize={10}
+                          tickFormatter={(value) =>
+                            `${(value / 1000000).toFixed(1)}M`
+                          }
+                        />
+                        <Tooltip
+                          formatter={(value: number) => [
+                            `${(value / 1000000).toFixed(2)}M`,
+                            "Volume",
+                          ]}
+                          labelStyle={{ color: "#9CA3AF" }}
+                          contentStyle={{
+                            backgroundColor: "#1F2937",
+                            border: "1px solid #374151",
+                          }}
+                        />
+                        <Bar dataKey="volume" fill="#6366F1" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="no-data"
+              className="text-center py-8 text-slate-400"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.2 }}
+            >
+              <p>No chart data available</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </motion.div>
   );
 }

@@ -27,7 +27,6 @@ const modalVariants = {
     scale: 1,
     opacity: 1,
     y: 0,
-    transition: { type: "spring", stiffness: 300, damping: 30 },
   },
   exit: { scale: 0.95, opacity: 0, y: 20 },
 };
@@ -281,6 +280,7 @@ export default function AddWidgetModal({
             animate="visible"
             exit="exit"
             variants={modalVariants}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">

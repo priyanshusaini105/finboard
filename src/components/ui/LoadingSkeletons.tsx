@@ -1,6 +1,4 @@
-"use client";
-
-// Loading skeletons for lazy-loaded components
+import { motion } from "framer-motion";
 export { default as DashboardSkeleton } from "./DashboardSkeleton";
 
 export function WidgetSkeleton() {
@@ -31,7 +29,14 @@ export function WidgetSkeleton() {
 
 export function ChartSkeleton() {
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-none animate-pulse">
+    <motion.div
+      className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-none animate-pulse"
+      layout
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center space-x-2">
@@ -48,11 +53,23 @@ export function ChartSkeleton() {
       </div>
 
       {/* Chart area */}
-      <div className="p-4">
-        <div className="h-64 bg-slate-200 dark:bg-slate-600 rounded mb-4"></div>
-        <div className="h-32 bg-slate-200 dark:bg-slate-600 rounded"></div>
-      </div>
-    </div>
+      <motion.div
+        className="p-4"
+        layout
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <motion.div
+          className="h-64 bg-slate-200 dark:bg-slate-600 rounded mb-4"
+          layout
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+        ></motion.div>
+        <motion.div
+          className="h-32 bg-slate-200 dark:bg-slate-600 rounded"
+          layout
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+        ></motion.div>
+      </motion.div>
+    </motion.div>
   );
 }
 
