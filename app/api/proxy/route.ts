@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/src/utils/logger";
 
 /**
  * Server-side Rate Limiting for API Proxy
@@ -190,10 +191,8 @@ export async function GET(request: NextRequest) {
       headers["X-Api-Key"] = apiKeyHeader;
     }
 
-    console.log(`[API Proxy] Proxying request to: ${targetUrl}`);
-    console.log(`[API Proxy] Rate limit status for ${rateLimitKey}:`, {
-      ...getRateLimitStatus(rateLimitKey, 60, 60000),
-    });
+    logger.info(`Proxying request to: ${targetUrl}`);
+    logger.debug(`Rate limit status for ${rateLimitKey}`, getRateLimitStatus(rateLimitKey, 60, 60000));
 
     // Make the API request with timeout
     const controller = new AbortController();
@@ -235,10 +234,7 @@ export async function GET(request: NextRequest) {
       if (response.status === 429) {
         const retryAfter =
           response.headers.get("retry-after") || "60";
-        console.warn(
-          `[API Proxy] Rate limited by upstream API: ${targetUrl}`,
-          { retryAfter }
-        );
+        logger.warn(`Rate limited by upstream API: ${targetUrl}`, { retryAfter });
         return NextResponse.json(
           {
             error: errorMessage || "Rate limited by upstream API",
@@ -254,10 +250,7 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      console.error(
-        `[API Proxy] API request failed: ${response.status} ${response.statusText}`,
-        { url: targetUrl, error: errorMessage }
-      );
+      logger.error(`API request failed: ${response.status} ${response.statusText}`, { url: targetUrl, error: errorMessage });
 
       return NextResponse.json(
         {
@@ -281,9 +274,7 @@ export async function GET(request: NextRequest) {
         data = await response.text();
       }
     } catch (parseError) {
-      console.error(
-        `[API Proxy] Failed to parse response: ${(parseError as Error).message}`
-      );
+      logger.error(`Failed to parse response: ${(parseError as Error).message}`);
       return NextResponse.json(
         {
           error: "Failed to parse API response",
@@ -301,16 +292,10 @@ export async function GET(request: NextRequest) {
         "Error" in (data as Record<string, unknown>))
     ) {
       const errorMsg = extractErrorMessage(data);
-      console.warn(`[API Proxy] API returned error in successful response:`, {
-        url: targetUrl,
-        error: errorMsg,
-      });
+      logger.warn(`API returned error in successful response`, { url: targetUrl, error: errorMsg });
     }
 
-    console.log(
-      `[API Proxy] Successfully fetched data from: ${targetUrl}`,
-      { size: JSON.stringify(data).length }
-    );
+    logger.info(`Successfully fetched data from: ${targetUrl}`, { size: JSON.stringify(data).length });
 
     const rateLimitStatus = getRateLimitStatus(rateLimitKey, 60, 60000);
 
@@ -342,7 +327,7 @@ export async function GET(request: NextRequest) {
       statusCode = 502;
     }
 
-    console.error(`[API Proxy] Proxy error: ${errorMsg}`, { error });
+    logger.error(`Proxy error: ${errorMsg}`, { error });
 
     return NextResponse.json(
       {
