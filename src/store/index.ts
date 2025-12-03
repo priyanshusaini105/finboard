@@ -1,6 +1,10 @@
 import { configureStore } from "@reduxjs/toolkit";
 import widgetsReducer from "./slices/widgetsSlice";
 import dashboardReducer from "./slices/dashboardSlice";
+import {
+  dashboardPersistenceMiddleware,
+  setStoreReference,
+} from "./middleware/dashboardPersistence";
 
 // First create store without middleware to avoid circular reference
 const makeStore = () => {
@@ -15,11 +19,14 @@ const makeStore = () => {
           // Ignore these action types
           ignoredActions: ["persist/PERSIST", "persist/REHYDRATE"],
         },
-      }),
+      }).concat(dashboardPersistenceMiddleware),
   });
 };
 
 export const store = makeStore();
+
+// Set store reference for middleware
+setStoreReference(store);
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

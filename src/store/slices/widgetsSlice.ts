@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { Widget, WidgetType, WidgetConfig } from "../../types/widget";
+import { loadWidgets } from "../middleware/dashboardPersistence";
 
 interface WidgetsState {
   items: Widget[];
@@ -7,8 +8,11 @@ interface WidgetsState {
   error: string | null;
 }
 
+// Load widgets from localStorage
+const savedWidgets = loadWidgets();
+
 const initialState: WidgetsState = {
-  items: [],
+  items: savedWidgets,
   isLoading: false,
   error: null,
 };

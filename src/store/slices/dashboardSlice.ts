@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { Widget } from "../../types/widget";
+import { loadDashboardConfig } from "../middleware/dashboardPersistence";
 
 interface DashboardState {
   isAddModalOpen: boolean;
@@ -9,12 +10,15 @@ interface DashboardState {
   refreshInterval: number; // Global refresh interval
 }
 
+// Load config from localStorage
+const savedConfig = loadDashboardConfig();
+
 const initialState: DashboardState = {
   isAddModalOpen: false,
   editingWidget: null,
-  theme: "dark",
-  layoutMode: "grid",
-  refreshInterval: 30, // 30 seconds default
+  theme: (savedConfig.theme as "dark" | "light") || "dark",
+  layoutMode: (savedConfig.layoutMode as "grid" | "list") || "grid",
+  refreshInterval: savedConfig.refreshInterval || 30, // 30 seconds default
 };
 
 const dashboardSlice = createSlice({
