@@ -146,10 +146,14 @@ const fetchWidgetData = async (
     // Handle API response (throws on error)
     const rawData = await handleApiResponse(response);
 
+    // Determine path hint from selected fields
+    const pathHint = widget.selectedFields?.find(f => f.includes("[]"));
+
     // Transform data based on widget type
     const transformedData = transformData(
       rawData,
-      widget.type as "chart" | "table" | "card"
+      widget.type as "chart" | "table" | "card",
+      pathHint
     );
 
     console.log(

@@ -12,6 +12,7 @@ import {
 import { Widget } from "../../types/widget";
 import { useWidgetData } from "../../hooks/useWidgetData";
 import { type ApiError } from "../../utils/errorHandler";
+import { mapFieldPath, getValueFromPath } from "../../utils/apiAdapters";
 
 interface WidgetTableProps {
   widget: Widget;
@@ -38,45 +39,6 @@ export default function WidgetTable({
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
-
-  const getValueFromPath = (
-    obj: Record<string, unknown>,
-    path: string
-  ): unknown => {
-    // Handle array notation like "trending_stocks.top_gainers[].company_name"
-    if (path.includes("[]")) {
-      const [arrayPath, propertyPath] = path.split("[].");
-      const arrayData = arrayPath
-        .split(".")
-        .reduce((current: unknown, key: string) => {
-          if (current && typeof current === "object" && key in current) {
-            return (current as Record<string, unknown>)[key];
-          }
-          return undefined;
-        }, obj as unknown);
-
-      if (Array.isArray(arrayData) && propertyPath) {
-        // Return array of the specific property from each object
-        return arrayData
-          .map((item) => {
-            if (item && typeof item === "object" && propertyPath in item) {
-              return (item as Record<string, unknown>)[propertyPath];
-            }
-            return undefined;
-          })
-          .filter((val) => val !== undefined);
-      }
-      return arrayData;
-    }
-
-    // Handle normal dot notation
-    return path.split(".").reduce((current: unknown, key: string) => {
-      if (current && typeof current === "object" && key in current) {
-        return (current as Record<string, unknown>)[key];
-      }
-      return undefined;
-    }, obj as unknown);
-  };
 
   const formatValue = (value: unknown): string => {
     if (value === null || value === undefined) return "N/A";
@@ -309,19 +271,35 @@ export default function WidgetTable({
               {widget.selectedFields?.map((field) => {
                 let value: unknown;
 
-                // Handle array notation fields
-                if (field.includes("[]")) {
-                  const propertyName = field
+                // Attempt to map the field to a simplified key
+                const mappedField = mapFieldPath(field, data?.originalData);
+
+                // Try to get value using mapped field first
+                if (mappedField.includes("[]")) {
+                  const propertyName = mappedField
                     .split("[]")
                     .pop()
                     ?.replace(/^\./, "");
-                  value = propertyName ? row[propertyName] : row;
-                } else if (field.includes(".")) {
-                  // For non-array fields, use the original path logic
-                  value = getValueFromPath(row, field);
+                  value = propertyName ? getValueFromPath(row, propertyName) : row;
+                } else if (mappedField.includes(".")) {
+                  value = getValueFromPath(row, mappedField);
                 } else {
-                  // Direct property access
-                  value = row[field];
+                  value = row[mappedField];
+                }
+
+                // Fallback to original field if mapped value is undefined
+                if (value === undefined) {
+                    if (field.includes("[]")) {
+                      const propertyName = field
+                        .split("[]")
+                        .pop()
+                        ?.replace(/^\./, "");
+                      value = propertyName ? getValueFromPath(row, propertyName) : row;
+                    } else if (field.includes(".")) {
+                      value = getValueFromPath(row, field);
+                    } else {
+                      value = row[field];
+                    }
                 }
 
                 return (

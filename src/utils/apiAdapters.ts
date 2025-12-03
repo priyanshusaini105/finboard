@@ -20,10 +20,50 @@ export interface CardData {
   [key: string]: unknown;
 }
 
+export function getValueFromPath(
+  obj: Record<string, unknown>,
+  path: string
+): unknown {
+  // Handle array notation like "trending_stocks.top_gainers[].company_name"
+  if (path.includes("[]")) {
+    const [arrayPath, propertyPath] = path.split("[].");
+    const arrayData = arrayPath
+      .split(".")
+      .reduce((current: unknown, key: string) => {
+        if (current && typeof current === "object" && key in current) {
+          return (current as Record<string, unknown>)[key];
+        }
+        return undefined;
+      }, obj as unknown);
+
+    if (Array.isArray(arrayData) && propertyPath) {
+      // Return array of the specific property from each object
+      return arrayData
+        .map((item) => {
+          if (item && typeof item === "object" && propertyPath in item) {
+            return (item as Record<string, unknown>)[propertyPath];
+          }
+          return undefined;
+        })
+        .filter((val) => val !== undefined);
+    }
+    return arrayData;
+  }
+
+  // Handle normal dot notation
+  return path.split(".").reduce((current: unknown, key: string) => {
+    if (current && typeof current === "object" && key in current) {
+      return (current as Record<string, unknown>)[key];
+    }
+    return undefined;
+  }, obj as unknown);
+}
+
 // Simple exported functions for easy use
 export function transformData(
   data: unknown,
-  widgetType: "chart" | "table" | "card"
+  widgetType: "chart" | "table" | "card",
+  pathHint?: string
 ): ChartDataPoint[] | TableDataRow[] | CardData {
   if (!data)
     return widgetType === "table" ? [] : widgetType === "chart" ? [] : {};
@@ -32,7 +72,7 @@ export function transformData(
     case "chart":
       return autoDetectChartData(data);
     case "table":
-      return autoDetectTableData(data);
+      return autoDetectTableData(data, pathHint);
     case "card":
       return autoDetectCardData(data);
   }
@@ -60,6 +100,68 @@ export function mapFieldPath(originalPath: string, originalData: unknown): strin
     };
 
     return fieldMap[originalPath] || originalPath;
+  }
+
+  // Generic mapping for common financial API fields (Alpha Vantage, etc.)
+  const commonMappings: Record<string, string> = {
+    "1. open": "open",
+    "2. high": "high",
+    "3. low": "low",
+    "4. close": "close",
+    "5. volume": "volume",
+    "open": "open",
+    "high": "high",
+    "low": "low",
+    "close": "close",
+    "volume": "volume",
+    "date": "date",
+    "timestamp": "date",
+    "time": "date",
+    "symbol": "symbol",
+    "2. Symbol": "symbol",
+    "time zone": "timezone",
+    "timezone": "timezone",
+    "5. Time Zone": "timezone",
+    "last refreshed": "last refreshed",
+    "3. Last Refreshed": "last refreshed",
+    "information": "last refreshed",
+    "meta": "meta",
+    "META": "meta",
+    "values": "price",
+    "VALUES": "price",
+    "metric": "metric",
+    "METRIC": "metric",
+    "label": "label",
+    "LABEL": "label",
+    "price": "price",
+    "PRICE": "price",
+    "dma50": "dma50",
+    "DMA50": "dma50",
+    "dma200": "dma200",
+    "DMA200": "dma200",
+    "VOLUME": "volume"
+  };
+
+  // Try lowercase match first
+  const lowerPath = originalPath.toLowerCase();
+  
+  // Exact match (case-sensitive)
+  if (commonMappings[originalPath]) {
+    return commonMappings[originalPath];
+  }
+
+  // Case-insensitive exact match
+  for (const [key, mappedKey] of Object.entries(commonMappings)) {
+    if (key.toLowerCase() === lowerPath) {
+      return mappedKey;
+    }
+  }
+
+  // Suffix match (e.g. "Time Series (Daily).2023.1. open" -> "open")
+  for (const [key, mappedKey] of Object.entries(commonMappings)) {
+    if (originalPath.endsWith(`.${key}`) || originalPath.endsWith(` ${key}`)) {
+      return mappedKey;
+    }
   }
 
   return originalPath;
@@ -134,7 +236,7 @@ function autoDetectChartData(data: unknown): ChartDataPoint[] {
 }
 
 // Smart table data detection - works with any array/object format
-function autoDetectTableData(data: unknown): TableDataRow[] {
+function autoDetectTableData(data: unknown, pathHint?: string): TableDataRow[] {
   try {
     // Direct array
     if (Array.isArray(data)) {
@@ -146,6 +248,55 @@ function autoDetectTableData(data: unknown): TableDataRow[] {
     }
 
     const dataObj = data as Record<string, unknown>;
+
+    // Try to use pathHint if provided
+    if (pathHint) {
+      const cleanPath = pathHint.split("[]")[0];
+      if (cleanPath) {
+        const array = getValueFromPath(dataObj, cleanPath);
+        if (Array.isArray(array)) return array as TableDataRow[];
+      }
+    }
+
+    // Indian API datasets format (historical data with Price, DMA50, DMA200, Volume)
+    if (dataObj.datasets && Array.isArray(dataObj.datasets)) {
+      const datasets = dataObj.datasets as Array<Record<string, unknown>>;
+      
+      // Find datasets by metric
+      const priceDataset = datasets.find((d) => d.metric === "Price") as Record<string, unknown> | undefined;
+      const dma50Dataset = datasets.find((d) => d.metric === "DMA50") as Record<string, unknown> | undefined;
+      const dma200Dataset = datasets.find((d) => d.metric === "DMA200") as Record<string, unknown> | undefined;
+      const volumeDataset = datasets.find((d) => d.metric === "Volume") as Record<string, unknown> | undefined;
+
+      if (!priceDataset || !Array.isArray(priceDataset.values)) {
+        // If no price data, return empty array
+        return [];
+      }
+
+      // Transform from datasets format to row-based format
+      const priceValues = priceDataset.values as Array<[string, string]>;
+      const dma50Values = (dma50Dataset?.values as Array<[string, string]>) || [];
+      const dma200Values = (dma200Dataset?.values as Array<[string, string]>) || [];
+      const volumeValues = (volumeDataset?.values as Array<[string, string]>) || [];
+
+      return priceValues.map((priceEntry, index) => {
+        const [date, price] = priceEntry;
+        const dma50Entry = dma50Values[index];
+        const dma200Entry = dma200Values[index];
+        const volumeEntry = volumeValues[index];
+
+        return {
+          date,
+          price: parseFloat(price),
+          dma50: dma50Entry ? parseFloat(dma50Entry[1]) : undefined,
+          dma200: dma200Entry ? parseFloat(dma200Entry[1]) : undefined,
+          volume: volumeEntry ? parseFloat(volumeEntry[1]) : undefined,
+          metric: priceDataset.label || "Price",
+          label: priceDataset.label || "Price on NSE",
+          meta: JSON.stringify(priceDataset.meta || {}),
+        };
+      });
+    }
 
     // Indian API trending_stocks format
     if (dataObj.trending_stocks) {
@@ -176,9 +327,21 @@ function autoDetectTableData(data: unknown): TableDataRow[] {
       }
     }
 
+    // Auto-detect any array property if not found in common list
+    const keys = Object.keys(dataObj);
+    const arrayKeys = keys.filter(key => Array.isArray(dataObj[key]));
+    if (arrayKeys.length === 1) {
+        return dataObj[arrayKeys[0]] as TableDataRow[];
+    }
+
     // Time series to table conversion
     if (dataObj["Time Series (Daily)"] && typeof dataObj["Time Series (Daily)"] === "object") {
       const timeSeries = dataObj["Time Series (Daily)"] as Record<string, unknown>;
+      const metaData = dataObj["Meta Data"] as Record<string, unknown> | undefined;
+      const symbol = metaData ? String(metaData["2. Symbol"]) : "N/A";
+      const timezone = metaData ? String(metaData["5. Time Zone"]) : "N/A";
+      const lastRefreshed = metaData ? String(metaData["3. Last Refreshed"]) : "N/A";
+      
       return Object.entries(timeSeries).map(
         ([date, values]) => {
           const valuesObj = values as Record<string, unknown>;
@@ -189,6 +352,9 @@ function autoDetectTableData(data: unknown): TableDataRow[] {
             low: parseFloat(String(valuesObj["3. low"])),
             close: parseFloat(String(valuesObj["4. close"])),
             volume: parseFloat(String(valuesObj["5. volume"])),
+            symbol,
+            timezone,
+            "last refreshed": lastRefreshed,
           };
         }
       );
