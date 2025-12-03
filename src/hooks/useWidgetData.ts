@@ -205,7 +205,7 @@ const fetchWidgetData = async (
     const rawData = await handleApiResponse(response);
     
     console.log(`🔍 [Fetch Widget] Raw data received for ${widget.title}:`, {
-      dataKeys: Object.keys(rawData),
+      dataKeys: rawData && typeof rawData === 'object' ? Object.keys(rawData as Record<string, unknown>) : [],
       dataType: typeof rawData,
       sample: JSON.stringify(rawData).substring(0, 200)
     });
@@ -245,8 +245,8 @@ const fetchWidgetData = async (
               const tableData = getTableData(transformedResponse.data);
               data = tableData.rows;
               console.log(`📋 [Fetch Widget] Table data prepared:`, {
-                rowCount: data.length,
-                firstRow: data[0]
+                rowCount: Array.isArray(data) ? data.length : 0,
+                firstRow: Array.isArray(data) && data.length > 0 ? data[0] : null
               });
               break;
             case 'chart':

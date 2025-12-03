@@ -67,10 +67,7 @@ export async function transformApiData(
     const sourceSchema = generateSchema(rawData);
     
     console.log(`📋 [Transform Service] Generated schema:`, {
-      name: sourceSchema?.name,
-      type: sourceSchema?.type,
       fieldCount: sourceSchema?.fields ? Object.keys(sourceSchema.fields).length : 0,
-      hasNested: !!sourceSchema?.nestedSchema,
       fields: sourceSchema?.fields ? Object.keys(sourceSchema.fields).slice(0, 10) : []
     });
     

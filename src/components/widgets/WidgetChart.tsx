@@ -1,4 +1,6 @@
-import React, { useMemo } from "react";
+"use client";
+
+import React, { useMemo, useState } from "react";
 import {
   Line,
   XAxis,
@@ -17,6 +19,7 @@ import { Widget } from "../../types/widget";
 import { getSymbolFromUrl } from "../../utils/apiAdapters";
 import { useWidgetData } from "../../hooks/useWidgetData";
 import { ChartSkeleton } from "../ui/LoadingSkeletons";
+import { useStore } from "../../store/useStore";
 
 // Chart data types
 interface ChartDataPoint {
@@ -65,6 +68,10 @@ export default function WidgetChart({
   onConfigure,
   onDelete,
 }: WidgetChartProps) {
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(widget.title);
+  const { updateWidgetTitle } = useStore();
+
   // Use TanStack Query for data fetching with caching
   const { data, isLoading, error, refetch, isFetching } = useWidgetData(widget);
 
@@ -105,6 +112,30 @@ export default function WidgetChart({
     return "STOCK";
   }, [widget.apiUrl]);
 
+  const handleTitleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditingTitle(true);
+    setEditingTitle(widget.title);
+  };
+
+  const handleTitleSave = () => {
+    if (editingTitle.trim() && editingTitle !== widget.title) {
+      updateWidgetTitle(widget.id, editingTitle.trim());
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.stopPropagation();
+      handleTitleSave();
+    } else if (e.key === "Escape") {
+      e.stopPropagation();
+      setEditingTitle(widget.title);
+      setIsEditingTitle(false);
+    }
+  };
+
   return (
     <motion.div
       className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-none"
@@ -123,9 +154,31 @@ export default function WidgetChart({
         <div className="flex items-center space-x-3">
           <div>
             <div className="flex items-center space-x-2">
-              <h3 className="font-medium text-slate-900 dark:text-white">
-                {widget.title}
-              </h3>
+              {isEditingTitle ? (
+                <input
+                  type="text"
+                  value={editingTitle}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setEditingTitle(e.target.value);
+                  }}
+                  onBlur={(e) => {
+                    e.stopPropagation();
+                    handleTitleSave();
+                  }}
+                  onKeyDown={handleTitleKeyDown}
+                  className="font-medium text-slate-900 dark:text-white bg-transparent border-b border-slate-400 focus:border-blue-500 outline-none px-1 py-0.5"
+                  autoFocus
+                />
+              ) : (
+                <h3
+                  className="font-medium text-slate-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  onDoubleClick={handleTitleDoubleClick}
+                  title="Double-click to edit title"
+                >
+                  {widget.title}
+                </h3>
+              )}
               <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded font-mono">
                 {stockSymbol}
               </span>
@@ -190,7 +243,7 @@ export default function WidgetChart({
 
       {/* Chart Content */}
       <motion.div
-        className="p-4"
+        className="p-4 overflow-y-auto"
         layout
         transition={{ duration: 0.3, ease: "easeInOut" }}
       >
