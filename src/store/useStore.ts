@@ -24,6 +24,7 @@ interface DashboardState {
   // Widget actions
   addWidget: (config: WidgetConfig, id: string) => void;
   updateWidget: (id: string, config: WidgetConfig) => void;
+  updateWidgetTitle: (id: string, title: string) => void;
   deleteWidget: (id: string) => void;
   reorderWidgets: (oldIndex: number, newIndex: number) => void;
   loadWidgetsFromStorage: (widgets: Widget[]) => void;
@@ -142,6 +143,13 @@ export const useStore = create<DashboardState>()(
                   error: undefined,
                 }
               : widget
+          ),
+        })),
+
+      updateWidgetTitle: (id: string, title: string) =>
+        set((state) => ({
+          widgets: state.widgets.map((widget) =>
+            widget.id === id ? { ...widget, title } : widget
           ),
         })),
 

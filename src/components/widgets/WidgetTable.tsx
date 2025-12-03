@@ -12,6 +12,7 @@ import {
 import { Widget } from "../../types/widget";
 import { useWidgetData } from "../../hooks/useWidgetData";
 import { type ApiError } from "../../utils/errorHandler";
+import { useStore } from "../../store/useStore";
 
 interface WidgetTableProps {
   widget: Widget;
@@ -24,6 +25,10 @@ export default function WidgetTable({
   onConfigure,
   onDelete,
 }: WidgetTableProps) {
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(widget.title);
+  const { updateWidgetTitle } = useStore();
+
   // Use TanStack Query for data fetching with enhanced error recovery
   const queryResult = useWidgetData(widget);
   const data = queryResult.data;
@@ -38,6 +43,30 @@ export default function WidgetTable({
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
+
+  const handleTitleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditingTitle(true);
+    setEditingTitle(widget.title);
+  };
+
+  const handleTitleSave = () => {
+    if (editingTitle.trim() && editingTitle !== widget.title) {
+      updateWidgetTitle(widget.id, editingTitle.trim());
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.stopPropagation();
+      handleTitleSave();
+    } else if (e.key === "Escape") {
+      e.stopPropagation();
+      setEditingTitle(widget.title);
+      setIsEditingTitle(false);
+    }
+  };
 
   const getValueFromPath = (
     obj: Record<string, unknown>,
@@ -345,9 +374,31 @@ export default function WidgetTable({
       {/* Widget Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center space-x-2">
-          <h3 className="font-medium text-slate-900 dark:text-white">
-            {widget.title}
-          </h3>
+          {isEditingTitle ? (
+            <input
+              type="text"
+              value={editingTitle}
+              onChange={(e) => {
+                e.stopPropagation();
+                setEditingTitle(e.target.value);
+              }}
+              onBlur={(e) => {
+                e.stopPropagation();
+                handleTitleSave();
+              }}
+              onKeyDown={handleTitleKeyDown}
+              className="font-medium text-slate-900 dark:text-white bg-transparent border-b border-slate-400 focus:border-blue-500 outline-none px-1 py-0.5"
+              autoFocus
+            />
+          ) : (
+            <h3
+              className="font-medium text-slate-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              onDoubleClick={handleTitleDoubleClick}
+              title="Double-click to edit title"
+            >
+              {widget.title}
+            </h3>
+          )}
           {(isLoading || isFetching) && (
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
           )}
