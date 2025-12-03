@@ -7,14 +7,12 @@ import SortableWidgetContent from "./SortableWidgetContent";
 
 interface SortableWidgetProps {
   widget: Widget;
-  onRefresh: (widgetId: string) => void;
   onConfigure: (widgetId: string) => void;
   onDelete: (widgetId: string) => void;
 }
 
 export default function SortableWidget({
   widget,
-  onRefresh,
   onConfigure,
   onDelete,
 }: SortableWidgetProps) {
@@ -55,7 +53,6 @@ export default function SortableWidget({
     >
       <SortableWidgetContent
         widget={widget}
-        onRefresh={onRefresh}
         onConfigure={onConfigure}
         onDelete={onDelete}
         isDragging={isDragging}

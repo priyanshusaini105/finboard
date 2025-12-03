@@ -102,7 +102,6 @@ export default function AddWidgetModal({
     if (!apiUrl) return;
 
     setIsTestingApi(true);
-    setApiError("");
 
     // Store current selected fields to preserve them in edit mode
     const currentSelectedFields = [...selectedFields];
@@ -142,8 +141,13 @@ export default function AddWidgetModal({
       const data = await response.json();
 
       // Extract fields from API response
-      const extractFields = (obj: any, prefix = ""): APIField[] => {
+      const extractFields = (obj: unknown, prefix = ""): APIField[] => {
         const fields: APIField[] = [];
+        
+        if (typeof obj !== "object" || obj === null) {
+          return fields;
+        }
+
         for (const [key, value] of Object.entries(obj)) {
           const fieldKey = prefix ? `${prefix}.${key}` : key;
 
@@ -163,7 +167,7 @@ export default function AddWidgetModal({
               typeof value[0] === "object" &&
               value[0] !== null
             ) {
-              const sampleObject = value[0];
+              const sampleObject = value[0] as Record<string, unknown>;
               for (const [objKey, objValue] of Object.entries(sampleObject)) {
                 const objectFieldKey = `${fieldKey}[].${objKey}`;
                 fields.push({
@@ -197,6 +201,7 @@ export default function AddWidgetModal({
         setSelectedFields(currentSelectedFields);
       }
     } catch (error) {
+      console.error("API test error:", error);
       setApiError("Failed to connect to API. Please check the URL.");
     } finally {
       setIsTestingApi(false);
@@ -653,7 +658,7 @@ export default function AddWidgetModal({
                             <div className="bg-blue-100 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-lg p-3 mb-4">
                               <p className="text-blue-700 dark:text-blue-300 text-xs mb-2">
                                 These are your currently selected fields. Click
-                                "Test API" to see all available fields and make
+                                &quot;Test API&quot; to see all available fields and make
                                 changes.
                               </p>
                               <div className="space-y-2">
@@ -725,12 +730,12 @@ export default function AddWidgetModal({
                                 </div>
                                 <div className="text-xs text-slate-600 dark:text-slate-400">
                                   {field.type}:{" "}
-                                  {field.type === "array"
-                                    ? field.value
+                                  {(field.type === "array"
+                                    ? String(field.value)
                                     : String(field.value).substring(0, 50) +
                                       (String(field.value).length > 50
                                         ? "..."
-                                        : "")}
+                                        : "")) as React.ReactNode}
                                 </div>
                               </div>
                               <motion.button

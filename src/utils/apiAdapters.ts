@@ -13,18 +13,18 @@ export interface ChartDataPoint {
 }
 
 export interface TableDataRow {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface CardData {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // Simple exported functions for easy use
 export function transformData(
-  data: any,
+  data: unknown,
   widgetType: "chart" | "table" | "card"
-): any {
+): ChartDataPoint[] | TableDataRow[] | CardData {
   if (!data)
     return widgetType === "table" ? [] : widgetType === "chart" ? [] : {};
 
@@ -35,16 +35,18 @@ export function transformData(
       return autoDetectTableData(data);
     case "card":
       return autoDetectCardData(data);
-    default:
-      return data;
   }
 }
 
 // Map old field paths to new simplified paths
-export function mapFieldPath(originalPath: string, originalData: any): string {
+export function mapFieldPath(originalPath: string, originalData: unknown): string {
   // Alpha Vantage Global Quote field mapping
-  if (originalData["Global Quote"]) {
-    const fieldMap: { [key: string]: string } = {
+  if (
+    typeof originalData === "object" &&
+    originalData !== null &&
+    "Global Quote" in originalData
+  ) {
+    const fieldMap: Record<string, string> = {
       "Global Quote.01. symbol": "symbol",
       "Global Quote.02. open": "open",
       "Global Quote.03. high": "high",
@@ -79,25 +81,34 @@ export function getSymbolFromUrl(apiUrl: string): string {
 }
 
 // Smart chart data detection - works with any time-series format
-function autoDetectChartData(data: any): ChartDataPoint[] {
+function autoDetectChartData(data: unknown): ChartDataPoint[] {
   try {
+    if (
+      typeof data !== "object" ||
+      data === null
+    ) {
+      return [];
+    }
+
+    const dataObj = data as Record<string, unknown>;
+
     // Indian API format (datasets with Price/Volume metrics)
-    if (data.datasets && Array.isArray(data.datasets)) {
-      return parseIndianAPIChart(data);
+    if (dataObj.datasets && Array.isArray(dataObj.datasets)) {
+      return parseIndianAPIChart(dataObj);
     }
 
     // Alpha Vantage format (Time Series)
     if (
-      data["Time Series (Daily)"] ||
-      data["Weekly Time Series"] ||
-      data["Monthly Time Series"]
+      dataObj["Time Series (Daily)"] ||
+      dataObj["Weekly Time Series"] ||
+      dataObj["Monthly Time Series"]
     ) {
-      return parseAlphaVantageChart(data);
+      return parseAlphaVantageChart(dataObj);
     }
 
     // Finnhub format (arrays: c, h, l, o, t, v)
-    if (data.c && data.t && Array.isArray(data.c) && Array.isArray(data.t)) {
-      return parseFinnhubChart(data);
+    if (dataObj.c && dataObj.t && Array.isArray(dataObj.c) && Array.isArray(dataObj.t)) {
+      return parseFinnhubChart(dataObj);
     }
 
     // Generic array format [{date, price, volume}, ...]
@@ -107,12 +118,12 @@ function autoDetectChartData(data: any): ChartDataPoint[] {
 
     // Generic object with arrays {dates: [], prices: [], volumes: []}
     if (
-      data.dates &&
-      data.prices &&
-      Array.isArray(data.dates) &&
-      Array.isArray(data.prices)
+      dataObj.dates &&
+      dataObj.prices &&
+      Array.isArray(dataObj.dates) &&
+      Array.isArray(dataObj.prices)
     ) {
-      return parseGenericObjectChart(data);
+      return parseGenericObjectChart(dataObj);
     }
 
     return [];
@@ -123,24 +134,31 @@ function autoDetectChartData(data: any): ChartDataPoint[] {
 }
 
 // Smart table data detection - works with any array/object format
-function autoDetectTableData(data: any): TableDataRow[] {
+function autoDetectTableData(data: unknown): TableDataRow[] {
   try {
     // Direct array
     if (Array.isArray(data)) {
-      return data;
+      return data as TableDataRow[];
     }
 
+    if (typeof data !== "object" || data === null) {
+      return [];
+    }
+
+    const dataObj = data as Record<string, unknown>;
+
     // Indian API trending_stocks format
-    if (data.trending_stocks) {
+    if (dataObj.trending_stocks) {
       // Combine top_gainers and top_losers into a single array
-      const gainers = data.trending_stocks.top_gainers || [];
-      const losers = data.trending_stocks.top_losers || [];
+      const trendingStocks = dataObj.trending_stocks as Record<string, unknown>;
+      const gainers = (trendingStocks.top_gainers as TableDataRow[]) || [];
+      const losers = (trendingStocks.top_losers as TableDataRow[]) || [];
       return [...gainers, ...losers];
     }
 
     // Generic data wrapper
-    if (data.data && Array.isArray(data.data)) {
-      return data.data;
+    if (dataObj.data && Array.isArray(dataObj.data)) {
+      return dataObj.data as TableDataRow[];
     }
 
     // Nested data in common API patterns
@@ -153,29 +171,38 @@ function autoDetectTableData(data: any): TableDataRow[] {
       "entries",
     ];
     for (const prop of arrayProperties) {
-      if (data[prop] && Array.isArray(data[prop])) {
-        return data[prop];
+      if (dataObj[prop] && Array.isArray(dataObj[prop])) {
+        return dataObj[prop] as TableDataRow[];
       }
     }
 
     // Time series to table conversion
-    if (data["Time Series (Daily)"]) {
-      return Object.entries(data["Time Series (Daily)"]).map(
-        ([date, values]: [string, any]) => ({
-          date,
-          open: parseFloat(values["1. open"]),
-          high: parseFloat(values["2. high"]),
-          low: parseFloat(values["3. low"]),
-          close: parseFloat(values["4. close"]),
-          volume: parseFloat(values["5. volume"]),
-        })
+    if (dataObj["Time Series (Daily)"] && typeof dataObj["Time Series (Daily)"] === "object") {
+      const timeSeries = dataObj["Time Series (Daily)"] as Record<string, unknown>;
+      return Object.entries(timeSeries).map(
+        ([date, values]) => {
+          const valuesObj = values as Record<string, unknown>;
+          return {
+            date,
+            open: parseFloat(String(valuesObj["1. open"])),
+            high: parseFloat(String(valuesObj["2. high"])),
+            low: parseFloat(String(valuesObj["3. low"])),
+            close: parseFloat(String(valuesObj["4. close"])),
+            volume: parseFloat(String(valuesObj["5. volume"])),
+          };
+        }
       );
     }
 
     // Finnhub to table conversion
-    if (data.c && data.t && Array.isArray(data.c)) {
-      const { c, h, l, o, t, v } = data;
-      return c.map((close: number, index: number) => {
+    if (dataObj.c && dataObj.t && Array.isArray(dataObj.c) && Array.isArray(dataObj.t)) {
+      const c = dataObj.c as number[];
+      const h = (dataObj.h as number[]) || [];
+      const l = (dataObj.l as number[]) || [];
+      const o = (dataObj.o as number[]) || [];
+      const t = dataObj.t as number[];
+      const v = (dataObj.v as number[]) || [];
+      return c.map((close, index) => {
         const date = new Date(t[index] * 1000);
         return {
           date: date.toISOString().split("T")[0],
@@ -190,7 +217,7 @@ function autoDetectTableData(data: any): TableDataRow[] {
 
     // Single object to array
     if (typeof data === "object" && !Array.isArray(data)) {
-      return [data];
+      return [data as TableDataRow];
     }
 
     return [];
@@ -201,17 +228,24 @@ function autoDetectTableData(data: any): TableDataRow[] {
 }
 
 // Smart card data detection - extracts key metrics
-function autoDetectCardData(data: any): CardData {
+function autoDetectCardData(data: unknown): CardData {
   try {
     // Array - take first item
     if (Array.isArray(data) && data.length > 0) {
-      return data[0];
+      return (data[0] as CardData) || {};
     }
 
+    if (typeof data !== "object" || data === null) {
+      return {};
+    }
+
+    const dataObj = data as Record<string, unknown>;
+
     // Indian API trending_stocks format - return summary stats
-    if (data.trending_stocks) {
-      const gainers = data.trending_stocks.top_gainers || [];
-      const losers = data.trending_stocks.top_losers || [];
+    if (dataObj.trending_stocks) {
+      const trendingStocks = dataObj.trending_stocks as Record<string, unknown>;
+      const gainers = (trendingStocks.top_gainers as Array<Record<string, unknown>>) || [];
+      const losers = (trendingStocks.top_losers as Array<Record<string, unknown>>) || [];
       return {
         total_gainers: gainers.length,
         total_losers: losers.length,
@@ -223,48 +257,53 @@ function autoDetectCardData(data: any): CardData {
     }
 
     // Alpha Vantage Global Quote format
-    if (data["Global Quote"]) {
-      const quote = data["Global Quote"];
+    if (dataObj["Global Quote"] && typeof dataObj["Global Quote"] === "object") {
+      const quote = dataObj["Global Quote"] as Record<string, unknown>;
       return {
         symbol: quote["01. symbol"],
-        open: parseFloat(quote["02. open"]),
-        high: parseFloat(quote["03. high"]),
-        low: parseFloat(quote["04. low"]),
-        price: parseFloat(quote["05. price"]),
-        volume: parseInt(quote["06. volume"]),
+        open: parseFloat(String(quote["02. open"])),
+        high: parseFloat(String(quote["03. high"])),
+        low: parseFloat(String(quote["04. low"])),
+        price: parseFloat(String(quote["05. price"])),
+        volume: parseInt(String(quote["06. volume"])),
         "latest trading day": quote["07. latest trading day"],
-        "previous close": parseFloat(quote["08. previous close"]),
-        change: parseFloat(quote["09. change"]),
+        "previous close": parseFloat(String(quote["08. previous close"])),
+        change: parseFloat(String(quote["09. change"])),
         "change percent": quote["10. change percent"],
       };
     }
 
     // Nested data.data pattern
-    if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-      return data.data[0];
+    if (dataObj.data && Array.isArray(dataObj.data) && dataObj.data.length > 0) {
+      return (dataObj.data[0] as CardData) || {};
     }
 
     // Time series - get latest data point
     const timeSeries =
-      data["Time Series (Daily)"] ||
-      data["Weekly Time Series"] ||
-      data["Monthly Time Series"];
-    if (timeSeries) {
+      (dataObj["Time Series (Daily)"] as Record<string, unknown>) ||
+      (dataObj["Weekly Time Series"] as Record<string, unknown>) ||
+      (dataObj["Monthly Time Series"] as Record<string, unknown>);
+    if (timeSeries && typeof timeSeries === "object") {
       const latestDate = Object.keys(timeSeries).sort().reverse()[0];
-      const latestData = timeSeries[latestDate];
+      const latestData = timeSeries[latestDate] as Record<string, unknown>;
       return {
         date: latestDate,
-        price: parseFloat(latestData["4. close"]),
-        open: parseFloat(latestData["1. open"]),
-        high: parseFloat(latestData["2. high"]),
-        low: parseFloat(latestData["3. low"]),
-        volume: parseFloat(latestData["5. volume"]),
+        price: parseFloat(String(latestData["4. close"])),
+        open: parseFloat(String(latestData["1. open"])),
+        high: parseFloat(String(latestData["2. high"])),
+        low: parseFloat(String(latestData["3. low"])),
+        volume: parseFloat(String(latestData["5. volume"])),
       };
     }
 
     // Finnhub - get latest data point
-    if (data.c && data.t && Array.isArray(data.c)) {
-      const { c, h, l, o, t, v } = data;
+    if (dataObj.c && dataObj.t && Array.isArray(dataObj.c) && Array.isArray(dataObj.t)) {
+      const c = dataObj.c as number[];
+      const h = (dataObj.h as number[]) || [];
+      const l = (dataObj.l as number[]) || [];
+      const o = (dataObj.o as number[]) || [];
+      const t = dataObj.t as number[];
+      const v = (dataObj.v as number[]) || [];
       const lastIndex = c.length - 1;
       const date = new Date(t[lastIndex] * 1000);
 
@@ -280,7 +319,7 @@ function autoDetectCardData(data: any): CardData {
     }
 
     // Direct object
-    return data || {};
+    return dataObj as CardData;
   } catch (error) {
     console.error("Card parsing error:", error);
     return {};
@@ -288,20 +327,26 @@ function autoDetectCardData(data: any): CardData {
 }
 
 // Specific format parsers
-function parseIndianAPIChart(data: any): ChartDataPoint[] {
-  const datasets = data.datasets;
-  const priceDataset = datasets.find((d: any) => d.metric === "Price");
-  const volumeDataset = datasets.find((d: any) => d.metric === "Volume");
-  const dma50Dataset = datasets.find((d: any) => d.metric === "DMA50");
-  const dma200Dataset = datasets.find((d: any) => d.metric === "DMA200");
+function parseIndianAPIChart(data: Record<string, unknown>): ChartDataPoint[] {
+  const datasets = data.datasets as Array<Record<string, unknown>>;
+  const priceDataset = datasets.find((d) => d.metric === "Price") as Record<string, unknown> | undefined;
+  const volumeDataset = datasets.find((d) => d.metric === "Volume") as Record<string, unknown> | undefined;
+  const dma50Dataset = datasets.find((d) => d.metric === "DMA50") as Record<string, unknown> | undefined;
+  const dma200Dataset = datasets.find((d) => d.metric === "DMA200") as Record<string, unknown> | undefined;
 
-  if (!priceDataset) return [];
+  if (!priceDataset || !Array.isArray(priceDataset.values)) return [];
 
-  return priceDataset.values.map((priceEntry: any, index: number) => {
+  return (priceDataset.values as Array<[string, string]>).map((priceEntry, index) => {
     const [date, price] = priceEntry;
-    const volumeEntry = volumeDataset?.values[index];
-    const dma50Entry = dma50Dataset?.values[index];
-    const dma200Entry = dma200Dataset?.values[index];
+    const volumeEntry = volumeDataset && Array.isArray(volumeDataset.values) 
+      ? (volumeDataset.values as Array<[string, string]>)[index]
+      : undefined;
+    const dma50Entry = dma50Dataset && Array.isArray(dma50Dataset.values) 
+      ? (dma50Dataset.values as Array<[string, string]>)[index]
+      : undefined;
+    const dma200Entry = dma200Dataset && Array.isArray(dma200Dataset.values) 
+      ? (dma200Dataset.values as Array<[string, string]>)[index]
+      : undefined;
 
     return {
       date: new Date(date).toLocaleDateString("en-US", {
@@ -317,15 +362,16 @@ function parseIndianAPIChart(data: any): ChartDataPoint[] {
   });
 }
 
-function parseAlphaVantageChart(data: any): ChartDataPoint[] {
-  const timeSeries =
+function parseAlphaVantageChart(data: Record<string, unknown>): ChartDataPoint[] {
+  const timeSeries = (
     data["Time Series (Daily)"] ||
     data["Weekly Time Series"] ||
-    data["Monthly Time Series"];
+    data["Monthly Time Series"]
+  ) as Record<string, Record<string, string>>;
 
   return Object.entries(timeSeries)
     .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
-    .map(([date, values]: [string, any]) => ({
+    .map(([date, values]) => ({
       date: new Date(date).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
@@ -340,10 +386,15 @@ function parseAlphaVantageChart(data: any): ChartDataPoint[] {
     }));
 }
 
-function parseFinnhubChart(data: any): ChartDataPoint[] {
-  const { c, h, l, o, t, v } = data;
+function parseFinnhubChart(data: Record<string, unknown>): ChartDataPoint[] {
+  const c = data.c as number[];
+  const h = (data.h as number[]) || [];
+  const l = (data.l as number[]) || [];
+  const o = (data.o as number[]) || [];
+  const t = data.t as number[];
+  const v = (data.v as number[]) || [];
 
-  return c.map((close: number, index: number) => {
+  return c.map((close, index) => {
     const date = new Date(t[index] * 1000);
     return {
       date: date.toLocaleDateString("en-US", {
@@ -361,10 +412,11 @@ function parseFinnhubChart(data: any): ChartDataPoint[] {
   });
 }
 
-function parseGenericArrayChart(data: any[]): ChartDataPoint[] {
-  return data.map((item: any, index: number) => {
-    const date = item.date || item.timestamp || item.time || `Day ${index + 1}`;
-    const price = item.price || item.close || item.value || 0;
+function parseGenericArrayChart(data: unknown[]): ChartDataPoint[] {
+  return data.map((item, index) => {
+    const itemObj = item as Record<string, unknown>;
+    const date = itemObj.date || itemObj.timestamp || itemObj.time || `Day ${index + 1}`;
+    const price = itemObj.price || itemObj.close || itemObj.value || 0;
 
     return {
       date:
@@ -373,23 +425,27 @@ function parseGenericArrayChart(data: any[]): ChartDataPoint[] {
               month: "short",
               day: "numeric",
             })
-          : date,
+          : String(date),
       fullDate: typeof date === "string" ? date : `${date}`,
-      price: parseFloat(price) || 0,
-      volume: item.volume ? parseFloat(item.volume) : undefined,
-      open: item.open ? parseFloat(item.open) : undefined,
-      high: item.high ? parseFloat(item.high) : undefined,
-      low: item.low ? parseFloat(item.low) : undefined,
-      close: item.close ? parseFloat(item.close) : undefined,
+      price: parseFloat(String(price)) || 0,
+      volume: itemObj.volume ? parseFloat(String(itemObj.volume)) : undefined,
+      open: itemObj.open ? parseFloat(String(itemObj.open)) : undefined,
+      high: itemObj.high ? parseFloat(String(itemObj.high)) : undefined,
+      low: itemObj.low ? parseFloat(String(itemObj.low)) : undefined,
+      close: itemObj.close ? parseFloat(String(itemObj.close)) : undefined,
     };
   });
 }
 
-function parseGenericObjectChart(data: any): ChartDataPoint[] {
-  return data.prices.map((price: any, index: number) => ({
-    date: data.dates?.[index] || `Day ${index + 1}`,
-    fullDate: data.dates?.[index] || `${index}`,
-    price: parseFloat(price) || 0,
-    volume: data.volumes?.[index] ? parseFloat(data.volumes[index]) : undefined,
+function parseGenericObjectChart(data: Record<string, unknown>): ChartDataPoint[] {
+  const prices = data.prices as number[];
+  const dates = (data.dates as string[]) || [];
+  const volumes = (data.volumes as number[]) || [];
+
+  return prices.map((price, index) => ({
+    date: dates[index] || `Day ${index + 1}`,
+    fullDate: dates[index] || `${index}`,
+    price: parseFloat(String(price)) || 0,
+    volume: volumes[index] ? parseFloat(String(volumes[index])) : undefined,
   }));
 }

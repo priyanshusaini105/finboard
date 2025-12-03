@@ -3,7 +3,6 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useState,
   ReactNode,
 } from "react";
@@ -23,36 +22,39 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>("dark");
-  const [mounted, setMounted] = useState(false);
-
-  // Load theme from localStorage on mount
-  useEffect(() => {
+  const [theme, setThemeState] = useState<Theme>(() => {
+    // Only initialize with saved theme or system preference on client
+    if (typeof window === "undefined") {
+      return "dark";
+    }
+    
     const savedTheme = localStorage.getItem("finboard-theme") as Theme;
     if (savedTheme && (savedTheme === "light" || savedTheme === "dark")) {
-      setThemeState(savedTheme);
-    } else {
-      // Check system preference
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
-        ? "dark"
-        : "light";
-      setThemeState(systemTheme);
+      return savedTheme;
     }
-    setMounted(true);
-  }, []);
+    // Check system preference
+    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+    return systemTheme;
+  });
 
   // Apply theme to document
-  useEffect(() => {
-    if (mounted) {
-      console.log("🎨 Applying theme:", theme);
-      // Apply to both html and body elements to ensure compatibility
-      document.documentElement.classList.remove("light", "dark");
-      document.documentElement.classList.add(theme);
-      localStorage.setItem("finboard-theme", theme);
-      console.log("🎨 Document classes:", document.documentElement.className);
-    }
-  }, [theme, mounted]);
+  const applyTheme = (newTheme: Theme) => {
+    if (typeof window === "undefined") return;
+    
+    console.log("🎨 Applying theme:", newTheme);
+    // Apply to both html and body elements to ensure compatibility
+    document.documentElement.classList.remove("light", "dark");
+    document.documentElement.classList.add(newTheme);
+    localStorage.setItem("finboard-theme", newTheme);
+    console.log("🎨 Document classes:", document.documentElement.className);
+  };
+
+  // Apply theme when component mounts or theme changes
+  if (typeof window !== "undefined") {
+    applyTheme(theme);
+  }
 
   const toggleTheme = () => {
     console.log("🔄 Toggling theme from", theme);
@@ -63,15 +65,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     setThemeState(newTheme);
   };
 
-  // Prevent hydration mismatch by not rendering until mounted
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
+  // Return a stable structure to prevent hydration mismatch
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
       {children}

@@ -1,6 +1,5 @@
 import React, { useMemo } from "react";
 import {
-  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -19,16 +18,50 @@ import { getSymbolFromUrl } from "../../utils/apiAdapters";
 import { useWidgetData } from "../../hooks/useWidgetData";
 import { ChartSkeleton } from "../ui/LoadingSkeletons";
 
+// Chart data types
+interface ChartDataPoint {
+  date: string;
+  price: number;
+  volume?: number;
+  dma50?: number | null;
+  dma200?: number | null;
+}
+
+interface TooltipPayload {
+  dataKey: string;
+  value: number;
+  color: string;
+}
+
+// Custom tooltip for the chart - defined outside component
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: TooltipPayload[]; label?: string }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-slate-800 p-3 rounded-lg border border-slate-600 shadow-lg">
+        <p className="text-slate-300 text-sm mb-2">{label}</p>
+        {payload.map((entry, index: number) => (
+          <p key={index} className="text-sm" style={{ color: entry.color }}>
+            {entry.dataKey === "price" && "₹"}
+            {entry.dataKey === "volume" && "Vol: "}
+            {entry.dataKey === "dma50" && "50 DMA: ₹"}
+            {entry.dataKey === "dma200" && "200 DMA: ₹"}
+            {entry.value?.toLocaleString()}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 interface WidgetChartProps {
   widget: Widget;
-  onRefresh: (widgetId: string) => void;
   onConfigure: (widgetId: string) => void;
   onDelete: (widgetId: string) => void;
 }
 
 export default function WidgetChart({
   widget,
-  onRefresh,
   onConfigure,
   onDelete,
 }: WidgetChartProps) {
@@ -71,42 +104,6 @@ export default function WidgetChart({
     }
     return "STOCK";
   }, [widget.apiUrl]);
-
-  // Chart data types
-  interface ChartDataPoint {
-    date: string;
-    price: number;
-    volume?: number;
-    dma50?: number | null;
-    dma200?: number | null;
-  }
-
-  interface TooltipPayload {
-    dataKey: string;
-    value: number;
-    color: string;
-  }
-
-  // Custom tooltip for the chart
-  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: TooltipPayload[]; label?: string }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-slate-800 p-3 rounded-lg border border-slate-600 shadow-lg">
-          <p className="text-slate-300 text-sm mb-2">{label}</p>
-          {payload.map((entry, index: number) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.dataKey === "price" && "₹"}
-              {entry.dataKey === "volume" && "Vol: "}
-              {entry.dataKey === "dma50" && "50 DMA: ₹"}
-              {entry.dataKey === "dma200" && "200 DMA: ₹"}
-              {entry.value?.toLocaleString()}
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
 
   return (
     <motion.div

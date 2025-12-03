@@ -15,14 +15,12 @@ import {
 
 interface LazyWidgetProps {
   widget: Widget;
-  onRefresh: (widgetId: string) => void;
   onConfigure: (widgetId: string) => void;
   onDelete: (widgetId: string) => void;
 }
 
 export default function LazyWidget({
   widget,
-  onRefresh,
   onConfigure,
   onDelete,
 }: LazyWidgetProps) {
@@ -33,7 +31,6 @@ export default function LazyWidget({
           <Suspense fallback={<ChartSkeleton />}>
             <LazyWidgetChart
               widget={widget}
-              onRefresh={onRefresh}
               onConfigure={onConfigure}
               onDelete={onDelete}
             />
@@ -45,7 +42,6 @@ export default function LazyWidget({
           <Suspense fallback={<TableSkeleton />}>
             <LazyWidgetTable
               widget={widget}
-              onRefresh={onRefresh}
               onConfigure={onConfigure}
               onDelete={onDelete}
             />
@@ -58,7 +54,6 @@ export default function LazyWidget({
           <Suspense fallback={<WidgetSkeleton />}>
             <LazyWidgetCard
               widget={widget}
-              onRefresh={onRefresh}
               onConfigure={onConfigure}
               onDelete={onDelete}
             />

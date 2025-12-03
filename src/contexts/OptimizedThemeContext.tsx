@@ -3,7 +3,6 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useState,
   ReactNode,
 } from "react";
@@ -24,34 +23,37 @@ interface ThemeProviderProps {
 }
 
 export function OptimizedThemeProvider({ children }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>("dark");
-  const [mounted, setMounted] = useState(false);
-
-  // Prevent hydration mismatch by only reading localStorage after mount
-  useEffect(() => {
+  const [theme, setThemeState] = useState<Theme>(() => {
+    // Only initialize with saved theme or system preference on client
+    if (typeof window === "undefined") {
+      return "dark";
+    }
+    
     const savedTheme = localStorage.getItem("finboard-theme") as Theme;
     if (savedTheme && (savedTheme === "light" || savedTheme === "dark")) {
-      setThemeState(savedTheme);
-    } else {
-      // Check system preference
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
-        ? "dark"
-        : "light";
-      setThemeState(systemTheme);
+      return savedTheme;
     }
-    setMounted(true);
-  }, []);
+    // Check system preference
+    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+    return systemTheme;
+  });
 
   // Apply theme to document
-  useEffect(() => {
-    if (mounted) {
-      const root = window.document.documentElement;
-      root.classList.remove("light", "dark");
-      root.classList.add(theme);
-      localStorage.setItem("finboard-theme", theme);
-    }
-  }, [theme, mounted]);
+  const applyTheme = (newTheme: Theme) => {
+    if (typeof window === "undefined") return;
+    
+    const root = window.document.documentElement;
+    root.classList.remove("light", "dark");
+    root.classList.add(newTheme);
+    localStorage.setItem("finboard-theme", newTheme);
+  };
+
+  // Apply theme whenever it changes
+  if (theme) {
+    applyTheme(theme);
+  }
 
   const toggleTheme = () => {
     setThemeState((prev) => (prev === "light" ? "dark" : "light"));
@@ -63,10 +65,10 @@ export function OptimizedThemeProvider({ children }: ThemeProviderProps) {
 
   // Return a stable structure to prevent hydration mismatch
   const value = {
-    theme: mounted ? theme : "dark", // Default to dark during SSR
+    theme,
     toggleTheme,
     setTheme,
-    mounted,
+    mounted: true,
   };
 
   return (

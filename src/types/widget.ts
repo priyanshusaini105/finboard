@@ -4,8 +4,8 @@ export interface Widget {
   type: WidgetType;
   apiUrl?: string;
   refreshInterval: number;
-  data?: any;
-  originalData?: any; // Store original data for field mapping
+  data?: Record<string, unknown> | unknown[];
+  originalData?: Record<string, unknown> | unknown[]; // Store original data for field mapping
   isLoading?: boolean;
   error?: string;
   position: { x: number; y: number };
@@ -31,6 +31,6 @@ export interface WidgetConfig {
 
 export interface APIField {
   key: string;
-  value: any;
+  value: unknown;
   type: string;
 }

@@ -8,7 +8,6 @@ import WidgetChart from "../widgets/WidgetChart";
 
 interface SortableWidgetContentProps {
   widget: Widget;
-  onRefresh: (widgetId: string) => void;
   onConfigure: (widgetId: string) => void;
   onDelete: (widgetId: string) => void;
   isDragging: boolean;
@@ -18,7 +17,6 @@ interface SortableWidgetContentProps {
 const SortableWidgetContent = memo(
   ({
     widget,
-    onRefresh,
     onConfigure,
     onDelete,
     isDragging,
@@ -29,7 +27,6 @@ const SortableWidgetContent = memo(
           return (
             <WidgetTable
               widget={widget}
-              onRefresh={onRefresh}
               onConfigure={onConfigure}
               onDelete={onDelete}
             />
@@ -38,7 +35,6 @@ const SortableWidgetContent = memo(
           return (
             <WidgetChart
               widget={widget}
-              onRefresh={onRefresh}
               onConfigure={onConfigure}
               onDelete={onDelete}
             />
@@ -47,7 +43,6 @@ const SortableWidgetContent = memo(
           return (
             <WidgetCard
               widget={widget}
-              onRefresh={onRefresh}
               onConfigure={onConfigure}
               onDelete={onDelete}
             />

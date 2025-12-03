@@ -6,6 +6,11 @@ import {
 import { Widget } from "../types/widget";
 import { transformData } from "../utils/apiAdapters";
 
+interface WidgetDataResult {
+  data: unknown;
+  originalData: unknown;
+}
+
 // Generate a unique query key for each widget
 const generateQueryKey = (widget: Widget) => [
   "widget-data",
@@ -16,7 +21,7 @@ const generateQueryKey = (widget: Widget) => [
 ];
 
 // Function to fetch and transform widget data
-const fetchWidgetData = async (widget: Widget) => {
+const fetchWidgetData = async (widget: Widget): Promise<WidgetDataResult> => {
   try {
     // Check if we need to use proxy for external APIs
     const needsProxy =
@@ -74,9 +79,9 @@ const fetchWidgetData = async (widget: Widget) => {
 // Custom hook for fetching widget data with caching
 export const useWidgetData = (
   widget: Widget,
-  options?: Partial<UseQueryOptions<any, Error>>
+  options?: Partial<UseQueryOptions<WidgetDataResult, Error>>
 ) => {
-  const result = useQuery({
+  const result = useQuery<WidgetDataResult, Error>({
     queryKey: generateQueryKey(widget),
     queryFn: async () => {
       console.log(

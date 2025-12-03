@@ -7,21 +7,19 @@ import { useWidgetData } from "../../hooks/useWidgetData";
 
 interface WidgetCardProps {
   widget: Widget;
-  onRefresh: (widgetId: string) => void;
   onConfigure: (widgetId: string) => void;
   onDelete: (widgetId: string) => void;
 }
 
 export default function WidgetCard({
   widget,
-  onRefresh,
   onConfigure,
   onDelete,
 }: WidgetCardProps) {
   // Use TanStack Query for data fetching with caching
   const { data, isLoading, error, refetch, isFetching } = useWidgetData(widget);
 
-  const formatValue = (value: any): string => {
+  const formatValue = (value: unknown): string => {
     if (value === null || value === undefined) {
       return "N/A";
     }
@@ -38,9 +36,10 @@ export default function WidgetCard({
 
     if (typeof value === "object") {
       // If it's an object, try to find a meaningful display value
-      if (value.symbol) return value.symbol;
-      if (value.name) return value.name;
-      if (value.title) return value.title;
+      const obj = value as Record<string, unknown>;
+      if (obj.symbol) return String(obj.symbol);
+      if (obj.name) return String(obj.name);
+      if (obj.title) return String(obj.title);
       // Otherwise show [Object]
       return "[Object]";
     }
@@ -48,7 +47,7 @@ export default function WidgetCard({
     return String(value);
   };
 
-  const getValueFromPath = (obj: any, path: string): any => {
+  const getValueFromPath = (obj: Record<string, unknown>, path: string): unknown => {
     // Map old field paths to new simplified paths
     const mappedPath = data?.originalData
       ? mapFieldPath(path, data.originalData)
@@ -59,12 +58,22 @@ export default function WidgetCard({
       const [arrayPath, propertyPath] = mappedPath.split("[].");
       const arrayData = arrayPath
         .split(".")
-        .reduce((current, key) => current?.[key], obj);
+        .reduce((current: unknown, key) => {
+          if (current && typeof current === "object" && key in current) {
+            return (current as Record<string, unknown>)[key];
+          }
+          return undefined;
+        }, obj);
 
       if (Array.isArray(arrayData) && propertyPath) {
         // Return array of the specific property from each object
         return arrayData
-          .map((item) => item?.[propertyPath])
+          .map((item) => {
+            if (item && typeof item === "object" && propertyPath in item) {
+              return (item as Record<string, unknown>)[propertyPath];
+            }
+            return undefined;
+          })
           .filter((val) => val !== undefined);
       }
       return arrayData;
@@ -72,11 +81,11 @@ export default function WidgetCard({
 
     // Handle normal dot notation with proper key parsing
     const keys = mappedPath.split(".");
-    let result = obj;
+    let result: unknown = obj;
 
     for (const key of keys) {
       if (result && typeof result === "object") {
-        result = result[key];
+        result = (result as Record<string, unknown>)[key];
       } else {
         return undefined;
       }
@@ -145,8 +154,10 @@ export default function WidgetCard({
                 arrays: [] as string[],
               };
 
+              const cardData = data.data as Record<string, unknown>;
+
               widget.selectedFields?.forEach((fieldPath) => {
-                const value = getValueFromPath(data.data, fieldPath);
+                const value = getValueFromPath(cardData, fieldPath);
                 const fieldName = fieldPath.split(".").pop() || fieldPath;
 
                 if (Array.isArray(value)) {
@@ -168,7 +179,7 @@ export default function WidgetCard({
                   {groupedFields.basic.length > 0 && (
                     <div className="bg-slate-700/50 p-3 rounded-lg space-y-3">
                       {groupedFields.basic.map((fieldPath) => {
-                        const value = getValueFromPath(data.data, fieldPath);
+                        const value = getValueFromPath(cardData, fieldPath);
                         const fieldName =
                           fieldPath.split(".").pop() || fieldPath;
 
@@ -191,7 +202,7 @@ export default function WidgetCard({
 
                   {/* Description Fields */}
                   {groupedFields.descriptions.map((fieldPath) => {
-                    const value = getValueFromPath(data.data, fieldPath);
+                    const value = getValueFromPath(cardData, fieldPath);
                     const fieldName = fieldPath.split(".").pop() || fieldPath;
 
                     return (
@@ -215,7 +226,7 @@ export default function WidgetCard({
 
                   {/* Array Fields */}
                   {groupedFields.arrays.map((fieldPath) => {
-                    const value = getValueFromPath(data.data, fieldPath);
+                    const value = getValueFromPath(cardData, fieldPath);
                     const fieldName = fieldPath.split(".").pop() || fieldPath;
 
                     if (!Array.isArray(value) || value.length === 0)
@@ -299,7 +310,7 @@ export default function WidgetCard({
               );
             })()}
 
-            {data.data.timestamp && (
+            {typeof data.data === "object" && data.data !== null && "timestamp" in (data.data as Record<string, unknown>) && (
               <div className="text-xs text-slate-500 pt-2 border-t border-slate-600">
                 Last updated: {new Date().toLocaleTimeString()}
               </div>

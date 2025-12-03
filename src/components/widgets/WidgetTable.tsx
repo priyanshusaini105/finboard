@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, JSX } from "react";
 import {
   RefreshCw,
   Settings,
@@ -14,49 +14,70 @@ import { useWidgetData } from "../../hooks/useWidgetData";
 
 interface WidgetTableProps {
   widget: Widget;
-  onRefresh: (widgetId: string) => void;
   onConfigure: (widgetId: string) => void;
   onDelete: (widgetId: string) => void;
 }
 
 export default function WidgetTable({
   widget,
-  onRefresh,
   onConfigure,
   onDelete,
 }: WidgetTableProps) {
   // Use TanStack Query for data fetching with caching
-  const { data, isLoading, error, refetch, isFetching } = useWidgetData(widget);
+  const queryResult = useWidgetData(widget);
+  const data = queryResult.data;
+  const isLoading: boolean = queryResult.isLoading;
+  const error: Error | null = queryResult.error;
+  const refetch = queryResult.refetch;
+  const isFetching: boolean = queryResult.isFetching;
 
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
-  const getValueFromPath = (obj: any, path: string): any => {
+  const getValueFromPath = (
+    obj: Record<string, unknown>,
+    path: string
+  ): unknown => {
     // Handle array notation like "trending_stocks.top_gainers[].company_name"
     if (path.includes("[]")) {
       const [arrayPath, propertyPath] = path.split("[].");
       const arrayData = arrayPath
         .split(".")
-        .reduce((current, key) => current?.[key], obj);
+        .reduce((current: unknown, key: string) => {
+          if (current && typeof current === "object" && key in current) {
+            return (current as Record<string, unknown>)[key];
+          }
+          return undefined;
+        }, obj as unknown);
 
       if (Array.isArray(arrayData) && propertyPath) {
         // Return array of the specific property from each object
         return arrayData
-          .map((item) => item?.[propertyPath])
+          .map((item) => {
+            if (item && typeof item === "object" && propertyPath in item) {
+              return (item as Record<string, unknown>)[propertyPath];
+            }
+            return undefined;
+          })
           .filter((val) => val !== undefined);
       }
       return arrayData;
     }
 
     // Handle normal dot notation
-    return path.split(".").reduce((current, key) => current?.[key], obj);
+    return path.split(".").reduce((current: unknown, key: string) => {
+      if (current && typeof current === "object" && key in current) {
+        return (current as Record<string, unknown>)[key];
+      }
+      return undefined;
+    }, obj as unknown);
   };
 
-  const formatValue = (value: any): string => {
+  const formatValue = (value: unknown): string => {
     if (value === null || value === undefined) return "N/A";
     if (Array.isArray(value)) {
-      return value.join(", ");
+      return value.map((v) => String(v)).join(", ");
     }
     if (typeof value === "number") {
       return value.toLocaleString();
@@ -84,7 +105,7 @@ export default function WidgetTable({
   const tableData = getTableData();
 
   // Filter data based on search term
-  const filteredData = tableData.filter((row: any) => {
+  const filteredData = tableData.filter((row: Record<string, unknown>) => {
     if (!searchTerm) return true;
 
     return widget.selectedFields?.some((field) => {
@@ -118,6 +139,91 @@ export default function WidgetTable({
     startIndex,
     startIndex + itemsPerPage
   );
+
+  // Render table content with proper typing
+  const renderTableContent = (): JSX.Element => {
+    if (error) {
+      return (
+        <div className="p-4 text-red-400 text-sm">
+          Error: {error instanceof Error ? error.message : String(error)}
+        </div>
+      );
+    }
+
+    if (isLoading) {
+      return <div className="p-4 text-slate-400 text-sm">Loading...</div>;
+    }
+
+    if (paginatedData.length === 0) {
+      return (
+        <div className="p-4 text-slate-400 text-sm">No data available</div>
+      );
+    }
+
+    return (
+      <table className="w-full">
+        <thead className="bg-slate-100 dark:bg-slate-700">
+          <tr>
+            {widget.selectedFields?.map((field) => {
+              // Better field name formatting for display
+              let displayName = field;
+              if (field.includes("[]")) {
+                displayName =
+                  field.split("[]").pop()?.replace(/^\./, "") || field;
+              } else {
+                displayName = field.split(".").pop() || field;
+              }
+
+              return (
+                <th
+                  key={field}
+                  className="px-4 py-3 text-left text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider"
+                >
+                  {displayName.replace(/_/g, " ")}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+          {paginatedData.map((row: Record<string, unknown>, index: number) => (
+            <tr
+              key={index}
+              className="hover:bg-slate-50 dark:hover:bg-slate-700/50"
+            >
+              {widget.selectedFields?.map((field) => {
+                let value: unknown;
+
+                // Handle array notation fields
+                if (field.includes("[]")) {
+                  const propertyName = field
+                    .split("[]")
+                    .pop()
+                    ?.replace(/^\./, "");
+                  value = propertyName ? row[propertyName] : row;
+                } else if (field.includes(".")) {
+                  // For non-array fields, use the original path logic
+                  value = getValueFromPath(row, field);
+                } else {
+                  // Direct property access
+                  value = row[field];
+                }
+
+                return (
+                  <td
+                    key={field}
+                    className="px-4 py-3 text-sm text-slate-900 dark:text-white"
+                  >
+                    {formatValue(value)}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  };
 
   return (
     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-none">
@@ -182,78 +288,7 @@ export default function WidgetTable({
         </div>
       </div>
 
-      {/* Table Content */}
-      <div className="overflow-x-auto">
-        {error ? (
-          <div className="p-4 text-red-400 text-sm">Error: {error.message}</div>
-        ) : isLoading ? (
-          <div className="p-4 text-slate-400 text-sm">Loading...</div>
-        ) : paginatedData.length > 0 ? (
-          <table className="w-full">
-            <thead className="bg-slate-100 dark:bg-slate-700">
-              <tr>
-                {widget.selectedFields?.map((field) => {
-                  // Better field name formatting for display
-                  let displayName = field;
-                  if (field.includes("[]")) {
-                    displayName =
-                      field.split("[]").pop()?.replace(/^\./, "") || field;
-                  } else {
-                    displayName = field.split(".").pop() || field;
-                  }
-
-                  return (
-                    <th
-                      key={field}
-                      className="px-4 py-3 text-left text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider"
-                    >
-                      {displayName.replace(/_/g, " ")}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-              {paginatedData.map((row: any, index: number) => (
-                <tr
-                  key={index}
-                  className="hover:bg-slate-50 dark:hover:bg-slate-700/50"
-                >
-                  {widget.selectedFields?.map((field) => {
-                    let value;
-
-                    // Handle array notation fields
-                    if (field.includes("[]")) {
-                      const propertyName = field
-                        .split("[]")
-                        .pop()
-                        ?.replace(/^\./, "");
-                      value = propertyName ? row[propertyName] : row;
-                    } else if (field.includes(".")) {
-                      // For non-array fields, use the original path logic
-                      value = getValueFromPath(row, field);
-                    } else {
-                      // Direct property access
-                      value = row[field];
-                    }
-
-                    return (
-                      <td
-                        key={field}
-                        className="px-4 py-3 text-sm text-slate-900 dark:text-white"
-                      >
-                        {formatValue(value)}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="p-4 text-slate-400 text-sm">No data available</div>
-        )}
-      </div>
+      <div className="overflow-x-auto">{renderTableContent()}</div>
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -284,8 +319,7 @@ export default function WidgetTable({
         </div>
       )}
 
-      {/* Last Updated */}
-      {data?.data && (
+      {!!data?.data && (
         <div className="px-4 py-2 bg-slate-100 dark:bg-slate-700/50 text-xs text-slate-600 dark:text-slate-500 text-center">
           Last updated: {new Date().toLocaleTimeString()}
         </div>

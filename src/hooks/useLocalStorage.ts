@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 /**
  * Hook to persist and retrieve data from localStorage
@@ -10,26 +10,22 @@ export function useLocalStorage<T>(
   key: string,
   initialValue: T
 ): [T, (value: T | ((prev: T) => T)) => void] {
-  const [storedValue, setStoredValue] = useState<T>(initialValue);
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  // Read from localStorage on mount
-  useEffect(() => {
+  const [storedValue, setStoredValue] = useState<T>(() => {
     try {
       if (typeof window === "undefined") {
-        return;
+        return initialValue;
       }
 
       const item = window.localStorage.getItem(key);
       if (item) {
-        setStoredValue(JSON.parse(item));
+        return JSON.parse(item);
       }
-      setIsLoaded(true);
+      return initialValue;
     } catch (error) {
       console.warn(`Error reading from localStorage key "${key}":`, error);
-      setIsLoaded(true);
+      return initialValue;
     }
-  }, [key]);
+  });
 
   // Update localStorage when value changes
   const setValue = (value: T | ((prev: T) => T)) => {

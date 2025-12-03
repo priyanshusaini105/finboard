@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Widget, WidgetType, WidgetConfig } from "../../types/widget";
+import { WidgetType, WidgetConfig } from "../../types/widget";
 import { useStore } from "../../store/useStore";
 import {
   DndContext,
@@ -75,43 +75,9 @@ export default function Dashboard() {
     if (editingWidget) {
       // Update existing widget
       updateWidget(editingWidget.id, config);
-      // Fetch updated data
-      const updatedWidget = {
-        ...editingWidget,
-        title: config.name,
-        type:
-          config.displayMode === "card"
-            ? WidgetType.CARD
-            : config.displayMode === "table"
-            ? WidgetType.TABLE
-            : WidgetType.CHART,
-        apiUrl: config.apiUrl,
-        refreshInterval: config.refreshInterval,
-        selectedFields: config.selectedFields,
-        headers: config.headers,
-      };
     } else {
       // Create new widget
       const id = generateId();
-
-      // Create the widget object that matches what we're adding to store
-      const newWidget: Widget = {
-        id,
-        title: config.name,
-        type:
-          config.displayMode === "card"
-            ? WidgetType.CARD
-            : config.displayMode === "table"
-            ? WidgetType.TABLE
-            : WidgetType.CHART,
-        apiUrl: config.apiUrl,
-        refreshInterval: config.refreshInterval,
-        selectedFields: config.selectedFields,
-        headers: config.headers,
-        position: { x: 0, y: 0 },
-        size: { width: 1, height: 1 },
-        isLoading: true,
-      };
 
       // Add widget to store
       addWidget(config, id);
@@ -119,12 +85,6 @@ export default function Dashboard() {
     closeModal();
   };
 
-  const refreshWidget = (widgetId: string) => {
-    // TanStack Query handles refresh via the refetch function in each widget component
-    console.log(
-      `Refresh request for widget: ${widgetId} - handled by TanStack Query`
-    );
-  };
 
   const configureWidget = (widgetId: string) => {
     const widget = widgets.find((w) => w.id === widgetId);
@@ -216,7 +176,6 @@ export default function Dashboard() {
                       <SortableWidget
                         key={widget.id}
                         widget={widget}
-                        onRefresh={refreshWidget}
                         onConfigure={configureWidget}
                         onDelete={deleteWidgetHandler}
                       />
@@ -238,7 +197,6 @@ export default function Dashboard() {
                       <SortableWidget
                         key={widget.id}
                         widget={widget}
-                        onRefresh={refreshWidget}
                         onConfigure={configureWidget}
                         onDelete={deleteWidgetHandler}
                       />
