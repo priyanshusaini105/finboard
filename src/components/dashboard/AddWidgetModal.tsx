@@ -4,6 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import { X, TestTube, CreditCard, Table, TrendingUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { WidgetConfig, APIField, Widget } from "../../types/widget";
+import { loadTransformedData } from "../../utils/transformedDataLoader";
+import { transformApiData, shouldTransformApi } from "../../utils/apiTransformationService";
+import type { ColumnDefinition } from "../../utils/commonFinancialSchema";
 
 interface AddWidgetModalProps {
   isOpen: boolean;
@@ -93,8 +96,17 @@ export default function AddWidgetModal({
       setHeaders(editingWidget.headers || {});
       setApiTestSuccess(false);
       setApiError("");
-      setApiFields([]); // Don't auto-populate, let user see their current selection first
+      setApiFields([]);
       hasAutoTestedRef.current = false;
+      
+      // Auto-load transformed fields for widgets with API URLs
+      if (editingWidget.apiUrl && !hasAutoTestedRef.current) {
+        hasAutoTestedRef.current = true;
+        // Use setTimeout to avoid updating state during render
+        setTimeout(() => {
+          testApiConnection();
+        }, 100);
+      }
     }
   }, [isOpen, editingWidget]);
 
@@ -107,6 +119,37 @@ export default function AddWidgetModal({
     const currentSelectedFields = [...selectedFields];
 
     try {
+      // First try to load transformed data from common schema
+      const transformedResponse = await loadTransformedData(apiUrl);
+      
+      if (transformedResponse.success && transformedResponse.data.columns.length > 0) {
+        console.log('✅ Using transformed data columns for field selection');
+        
+        // Convert columns to APIField format for the UI
+        const fields: APIField[] = transformedResponse.data.columns.map((col: ColumnDefinition) => ({
+          key: col.key,
+          value: `${col.label} (${col.type})`,
+          type: col.type,
+        }));
+        
+        setApiFields(fields);
+        setApiTestSuccess(true);
+
+        // In edit mode, preserve the existing selected fields
+        if (editingWidget && currentSelectedFields.length > 0) {
+          setSelectedFields(currentSelectedFields);
+        } else {
+          // Auto-select all columns from transformed data
+          setSelectedFields(fields.map(f => f.key));
+        }
+        
+        setIsTestingApi(false);
+        return;
+      }
+
+      // Fallback: Fetch raw API data if transformed data not available
+      console.log('⚠️ Transformed data not available, falling back to raw API');
+      
       // Check if we need to use proxy for external APIs
       const needsProxy =
         apiUrl.includes("finnhub.io") || apiUrl.includes("alphavantage.co");
@@ -140,7 +183,51 @@ export default function AddWidgetModal({
 
       const data = await response.json();
 
-      // Extract fields from API response
+      // Try to transform the raw data to common schema
+      if (shouldTransformApi(apiUrl)) {
+        try {
+          console.log('🔄 [Modal] Attempting to transform API data...');
+          const transformedResponse = await transformApiData(data, apiUrl);
+          
+          if (transformedResponse.success && transformedResponse.columns.length > 0) {
+            console.log('✅ [Modal] Successfully transformed API data');
+            
+            // Convert columns to APIField format for the UI
+            const fields: APIField[] = transformedResponse.columns.map((col: ColumnDefinition) => ({
+              key: col.key,
+              value: `${col.label} (${col.type})`,
+              type: col.type,
+            }));
+            
+            setApiFields(fields);
+            setApiTestSuccess(true);
+
+            // In edit mode, preserve the existing selected fields if they match
+            if (editingWidget && currentSelectedFields.length > 0) {
+              // Check if old fields match new column keys
+              const columnKeys = fields.map(f => f.key);
+              const matchingFields = currentSelectedFields.filter(f => columnKeys.includes(f));
+              
+              if (matchingFields.length > 0) {
+                setSelectedFields(matchingFields);
+              } else {
+                // Auto-select all columns from transformed data
+                setSelectedFields(columnKeys);
+              }
+            } else {
+              // Auto-select all columns from transformed data
+              setSelectedFields(fields.map(f => f.key));
+            }
+            
+            setIsTestingApi(false);
+            return;
+          }
+        } catch (transformError) {
+          console.warn('[Modal] Transformation failed, falling back to raw field extraction:', transformError);
+        }
+      }
+
+      // Fallback: Extract fields from raw API response
       const extractFields = (obj: unknown, prefix = ""): APIField[] => {
         const fields: APIField[] = [];
         
@@ -647,55 +734,36 @@ export default function AddWidgetModal({
                     </div>
 
                     <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {/* Show currently selected fields when editing */}
+                      {/* Show currently selected fields when editing - only if not using transformed data */}
                       {editingWidget &&
                         selectedFields.length > 0 &&
-                        apiFields.length === 0 && (
+                        apiFields.length === 0 &&
+                        !selectedFields.some(f => f.includes('.') && f.split('.').length > 2) && (
                           <>
                             <h4 className="text-sm font-medium text-slate-900 dark:text-slate-300">
                               Currently Selected Fields
                             </h4>
                             <div className="bg-blue-100 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-lg p-3 mb-4">
                               <p className="text-blue-700 dark:text-blue-300 text-xs mb-2">
-                                These are your currently selected fields. Click
-                                &quot;Test API&quot; to see all available fields and make
-                                changes.
+                                Click &quot;Test API&quot; to load fields from the common schema.
                               </p>
-                              <div className="space-y-2">
-                                {selectedFields.map((fieldKey) => (
-                                  <motion.div
-                                    key={fieldKey}
-                                    className="flex items-center justify-between p-2 bg-white dark:bg-slate-700 rounded border border-slate-300 dark:border-slate-600"
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                  >
-                                    <div className="flex-1">
-                                      <div className="text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                                        {fieldKey}
-                                        {fieldKey.includes("[]") && (
-                                          <span className="text-xs bg-green-600 px-1 py-0.5 rounded">
-                                            Item Property
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="text-xs text-slate-600 dark:text-slate-400">
-                                        Currently selected
-                                      </div>
-                                    </div>
-                                    <motion.button
-                                      onClick={() =>
-                                        handleFieldToggle(fieldKey)
-                                      }
-                                      className="px-2 py-1 rounded text-xs bg-emerald-500 text-white"
-                                      title="Remove field"
-                                      whileHover={{ scale: 1.1 }}
-                                      whileTap={{ scale: 0.9 }}
-                                    >
-                                      −
-                                    </motion.button>
-                                  </motion.div>
-                                ))}
-                              </div>
+                            </div>
+                          </>
+                        )}
+                      
+                      {/* Show message for widgets with old field structure */}
+                      {editingWidget &&
+                        selectedFields.length > 0 &&
+                        apiFields.length === 0 &&
+                        selectedFields.some(f => f.includes('.') && f.split('.').length > 2) && (
+                          <>
+                            <div className="bg-amber-100 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg p-3 mb-4">
+                              <p className="text-amber-700 dark:text-amber-300 text-xs mb-2">
+                                ⚠️ This widget uses the old field structure. Click &quot;Test API&quot; to migrate to the new common schema with clean field names.
+                              </p>
+                              <p className="text-amber-600 dark:text-amber-400 text-xs">
+                                Old fields: {selectedFields.length} raw API paths
+                              </p>
                             </div>
                           </>
                         )}

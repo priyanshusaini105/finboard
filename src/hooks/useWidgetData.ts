@@ -6,6 +6,16 @@ import {
 import { Widget } from "../types/widget";
 import { transformData } from "../utils/apiAdapters";
 import {
+  loadTransformedData,
+  getTableData,
+  getChartData,
+  getCardData,
+} from "../utils/transformedDataLoader";
+import {
+  transformApiData,
+  shouldTransformApi,
+} from "../utils/apiTransformationService";
+import {
   createApiError,
   handleApiResponse,
   formatErrorForDisplay,
@@ -18,15 +28,18 @@ import {
   getRateLimiterForUrl,
   waitForRateLimitReset,
 } from "../utils/rateLimiter";
+import type { ColumnDefinition } from "../utils/commonFinancialSchema";
 
 interface WidgetDataResult {
   data: unknown;
   originalData: unknown;
+  columns?: ColumnDefinition[];
   fromCache?: boolean;
   rateLimitInfo?: {
     tokensRemaining: number;
     resetTime: number;
   };
+  useTransformedData?: boolean;
 }
 
 interface FetchOptions {
@@ -98,6 +111,51 @@ const fetchWidgetData = async (
       });
     }
 
+    // Try to use transformed data first (from common schema)
+    try {
+      const transformedResponse = await loadTransformedData(widget.apiUrl);
+      
+      if (transformedResponse.success) {
+        console.log(
+          `✅ [Transformed Data] Using pre-transformed data for ${widget.title}`,
+          { dataType: transformedResponse.data.dataType }
+        );
+
+        let data: unknown;
+        const columns = transformedResponse.data.columns;
+
+        // Transform based on widget type
+        switch (widget.type) {
+          case 'table':
+            const tableData = getTableData(transformedResponse.data);
+            data = tableData.rows;
+            break;
+          case 'chart':
+            data = getChartData(transformedResponse.data);
+            break;
+          case 'card':
+            data = getCardData(transformedResponse.data);
+            break;
+          default:
+            data = transformedResponse.data.rows;
+        }
+
+        return {
+          data,
+          originalData: transformedResponse.data,
+          columns,
+          fromCache: false,
+          useTransformedData: true,
+        };
+      }
+    } catch (transformError) {
+      console.warn(
+        `[Transformed Data] Failed to load transformed data, falling back to raw API:`,
+        transformError
+      );
+    }
+
+    // Fallback: Fetch from raw API
     // Check client-side rate limiting
     await checkClientRateLimit(widget.apiUrl);
 
@@ -145,7 +203,97 @@ const fetchWidgetData = async (
 
     // Handle API response (throws on error)
     const rawData = await handleApiResponse(response);
+    
+    console.log(`🔍 [Fetch Widget] Raw data received for ${widget.title}:`, {
+      dataKeys: Object.keys(rawData),
+      dataType: typeof rawData,
+      sample: JSON.stringify(rawData).substring(0, 200)
+    });
 
+    // Try to transform the raw data to common schema
+    if (shouldTransformApi(widget.apiUrl)) {
+      try {
+        console.log(`🔄 [Fetch Widget] Attempting transformation for ${widget.title}...`);
+        const transformedResponse = await transformApiData(rawData, widget.apiUrl);
+        
+        console.log(`📊 [Fetch Widget] Transformation result:`, {
+          success: transformedResponse.success,
+          hasColumns: !!transformedResponse.columns,
+          columnsCount: transformedResponse.columns?.length,
+          hasData: !!transformedResponse.data,
+          rowsCount: transformedResponse.data?.rows?.length,
+          error: transformedResponse.error
+        });
+        
+        if (transformedResponse.success) {
+          console.log(
+            `✅ [Fetch Widget] Using transformed data for ${widget.title}`,
+            { 
+              columns: transformedResponse.columns.length,
+              columnKeys: transformedResponse.columns.map(c => c.key),
+              rows: transformedResponse.data.rows.length,
+              firstRow: transformedResponse.data.rows[0]
+            }
+          );
+
+          let data: unknown;
+          const columns = transformedResponse.columns;
+
+          // Transform based on widget type
+          switch (widget.type) {
+            case 'table':
+              const tableData = getTableData(transformedResponse.data);
+              data = tableData.rows;
+              console.log(`📋 [Fetch Widget] Table data prepared:`, {
+                rowCount: data.length,
+                firstRow: data[0]
+              });
+              break;
+            case 'chart':
+              data = getChartData(transformedResponse.data);
+              break;
+            case 'card':
+              data = getCardData(transformedResponse.data);
+              break;
+            default:
+              data = transformedResponse.data.rows;
+          }
+
+          const result = {
+            data,
+            originalData: transformedResponse.data,
+            columns,
+            fromCache: false,
+            useTransformedData: true,
+            rateLimitInfo: rateLimitInfo || undefined,
+          };
+          
+          console.log(`✨ [Fetch Widget] Final result structure:`, {
+            hasData: !!result.data,
+            dataType: typeof result.data,
+            dataIsArray: Array.isArray(result.data),
+            dataLength: Array.isArray(result.data) ? result.data.length : 'N/A',
+            hasColumns: !!result.columns,
+            columnsCount: result.columns?.length,
+            useTransformedData: result.useTransformedData
+          });
+
+          return result;
+        } else {
+          console.warn(
+            `⚠️ [Fetch Widget] Transformation failed, using legacy adapter:`,
+            transformedResponse.error
+          );
+        }
+      } catch (transformError) {
+        console.error(
+          `[Fetch Widget] Transformation error, falling back to legacy adapter:`,
+          transformError
+        );
+      }
+    }
+
+    // Legacy fallback: Use old adapter system
     // Determine path hint from selected fields
     const pathHint = widget.selectedFields?.find(f => f.includes("[]"));
 
@@ -165,6 +313,7 @@ const fetchWidgetData = async (
       originalData: rawData,
       fromCache: false,
       rateLimitInfo: rateLimitInfo || undefined,
+      useTransformedData: false,
     };
   } catch (error) {
     const apiError = error instanceof Error ? (error as ApiError) : createApiError(

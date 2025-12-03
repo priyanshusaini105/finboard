@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, JSX } from "react";
+import { useState, JSX, useEffect } from "react";
 import {
   RefreshCw,
   Settings,
@@ -13,6 +13,8 @@ import { Widget } from "../../types/widget";
 import { useWidgetData } from "../../hooks/useWidgetData";
 import { type ApiError } from "../../utils/errorHandler";
 import { mapFieldPath, getValueFromPath } from "../../utils/apiAdapters";
+import type { ColumnDefinition } from "../../utils/commonFinancialSchema";
+import { q } from "framer-motion/client";
 
 interface WidgetTableProps {
   widget: Widget;
@@ -27,7 +29,10 @@ export default function WidgetTable({
 }: WidgetTableProps) {
   // Use TanStack Query for data fetching with enhanced error recovery
   const queryResult = useWidgetData(widget);
-  const data = queryResult.data;
+  const widgetData = queryResult.data; // This is the WidgetDataResult
+  const data = widgetData?.data; // The actual table rows
+  const columns = widgetData?.columns as ColumnDefinition[] | undefined;
+  const useTransformedData = widgetData?.useTransformedData;
   const isLoading: boolean = queryResult.isLoading;
   const error = queryResult.error;
   const errorMessage = queryResult.errorMessage;
@@ -51,19 +56,32 @@ export default function WidgetTable({
     return String(value);
   };
 
+  useEffect(() => {
+    // Debug logging to trace data flow
+    console.log('=== WidgetTable Debug ===');
+    console.log('1. Widget config:', widget);
+    console.log('2. Query result:', queryResult);
+    console.log('3. widgetData:', widgetData);
+    console.log('4. data (rows):', data);
+    console.log('5. columns:', columns);
+    console.log('6. useTransformedData:', useTransformedData);
+    console.log('7. tableData:', getTableData());
+    console.log('========================');
+  }, [widget, queryResult, widgetData, data, columns, useTransformedData]);
+
   // Convert data to array format for table display
   const getTableData = () => {
-    if (!data?.data) return [];
+    if (!data) return [];
 
     // Data is already transformed by the Dashboard using transformData()
     // It should be an array of objects ready for table display
-    if (Array.isArray(data.data)) {
-      return data.data;
+    if (Array.isArray(data)) {
+      return data;
     }
 
     // Fallback: if data is not an array, convert single object to array
-    if (typeof data.data === "object") {
-      return [data.data];
+    if (typeof data === "object") {
+      return [data];
     }
 
     return [];
@@ -74,10 +92,15 @@ export default function WidgetTable({
   const filteredData = tableData.filter((row: Record<string, unknown>) => {
     if (!searchTerm) return true;
 
-    return widget.selectedFields?.some((field) => {
+    // Use columns from transformed data if available
+    const fieldsToSearch = useTransformedData && columns 
+      ? columns.map(col => col.key)
+      : (widget.selectedFields || Object.keys(row));
+
+    return fieldsToSearch.some((field) => {
       let value;
 
-      // Handle array notation fields
+      // Handle array notation fields (for non-transformed data)
       if (field.includes("[]")) {
         const propertyName = field.split("[]").pop()?.replace(/^\./, "");
         value = propertyName ? row[propertyName] : row;
@@ -241,25 +264,39 @@ export default function WidgetTable({
       <table className="w-full">
         <thead className="bg-slate-100 dark:bg-slate-700">
           <tr>
-            {widget.selectedFields?.map((field) => {
-              // Better field name formatting for display
-              let displayName = field;
-              if (field.includes("[]")) {
-                displayName =
-                  field.split("[]").pop()?.replace(/^\./, "") || field;
-              } else {
-                displayName = field.split(".").pop() || field;
-              }
-
-              return (
+            {useTransformedData && columns ? (
+              // Use columns from transformed data
+              columns.map((column) => (
                 <th
-                  key={field}
+                  key={column.key}
                   className="px-4 py-3 text-left text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider"
+                  style={{ textAlign: column.align || 'left' }}
                 >
-                  {displayName.replace(/_/g, " ")}
+                  {column.label}
                 </th>
-              );
-            })}
+              ))
+            ) : (
+              // Fallback to selectedFields for non-transformed data
+              widget.selectedFields?.map((field) => {
+                // Better field name formatting for display
+                let displayName = field;
+                if (field.includes("[]")) {
+                  displayName =
+                    field.split("[]").pop()?.replace(/^\./, "") || field;
+                } else {
+                  displayName = field.split(".").pop() || field;
+                }
+
+                return (
+                  <th
+                    key={field}
+                    className="px-4 py-3 text-left text-xs font-medium text-slate-700 dark:text-slate-300 uppercase tracking-wider"
+                  >
+                    {displayName.replace(/_/g, " ")}
+                  </th>
+                );
+              })
+            )}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -268,49 +305,67 @@ export default function WidgetTable({
               key={index}
               className="hover:bg-slate-50 dark:hover:bg-slate-700/50"
             >
-              {widget.selectedFields?.map((field) => {
-                let value: unknown;
+              {useTransformedData && columns ? (
+                // Use columns from transformed data
+                columns.map((column) => {
+                  const value = row[column.key];
+                  
+                  return (
+                    <td
+                      key={column.key}
+                      className="px-4 py-3 text-sm text-slate-900 dark:text-white"
+                      style={{ textAlign: column.align || 'left' }}
+                    >
+                      {formatValue(value)}
+                    </td>
+                  );
+                })
+              ) : (
+                // Fallback to selectedFields for non-transformed data
+                widget.selectedFields?.map((field) => {
+                  let value: unknown;
 
-                // Attempt to map the field to a simplified key
-                const mappedField = mapFieldPath(field, data?.originalData);
+                  // Attempt to map the field to a simplified key
+                  const mappedField = mapFieldPath(field, widgetData?.originalData);
 
-                // Try to get value using mapped field first
-                if (mappedField.includes("[]")) {
-                  const propertyName = mappedField
-                    .split("[]")
-                    .pop()
-                    ?.replace(/^\./, "");
-                  value = propertyName ? getValueFromPath(row, propertyName) : row;
-                } else if (mappedField.includes(".")) {
-                  value = getValueFromPath(row, mappedField);
-                } else {
-                  value = row[mappedField];
-                }
+                  // Try to get value using mapped field first
+                  if (mappedField.includes("[]")) {
+                    const propertyName = mappedField
+                      .split("[]")
+                      .pop()
+                      ?.replace(/^\./, "");
+                    value = propertyName ? getValueFromPath(row, propertyName) : row;
+                  } else if (mappedField.includes(".")) {
+                    value = getValueFromPath(row, mappedField);
+                  } else {
+                    value = row[mappedField];
+                  }
 
-                // Fallback to original field if mapped value is undefined
-                if (value === undefined) {
-                    if (field.includes("[]")) {
-                      const propertyName = field
-                        .split("[]")
-                        .pop()
-                        ?.replace(/^\./, "");
-                      value = propertyName ? getValueFromPath(row, propertyName) : row;
-                    } else if (field.includes(".")) {
-                      value = getValueFromPath(row, field);
-                    } else {
-                      value = row[field];
-                    }
-                }
+                  // Fallback to original field if mapped value is undefined
+                  if (value === undefined) {
+                      if (field.includes("[]")) {
+                        const propertyName = field
+                          .split("[]")
+                          .pop()
+                          ?.replace(/^\./, "");
+                        value = propertyName ? getValueFromPath(row, propertyName) : row;
+                      } else if (field.includes(".")) {
+                        value = getValueFromPath(row, field);
+                      } else {
+                        value = row[field];
+                      }
+                  }
 
-                return (
-                  <td
-                    key={field}
-                    className="px-4 py-3 text-sm text-slate-900 dark:text-white"
-                  >
-                    {formatValue(value)}
-                  </td>
-                );
-              })}
+                  return (
+                    <td
+                      key={field}
+                      className="px-4 py-3 text-sm text-slate-900 dark:text-white"
+                    >
+                      {formatValue(value)}
+                    </td>
+                  );
+                })
+              )}
             </tr>
           ))}
         </tbody>
@@ -432,7 +487,7 @@ export default function WidgetTable({
         </div>
       )}
 
-      {!!data?.data && (
+      {!!data && (
         <div className="px-4 py-2 bg-slate-100 dark:bg-slate-700/50 text-xs text-slate-600 dark:text-slate-500 text-center space-y-1">
           <div>
             Last updated: {new Date().toLocaleTimeString()}

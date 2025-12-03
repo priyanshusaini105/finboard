@@ -120,7 +120,7 @@ export class DataTransformer {
     mapping: any
   ): FinancialDataset {
     const rows: any[] = [];
-    const columns = this.mapper.generateColumnDefinitions();
+    let columns: ColumnDefinition[] = [];
 
     // Navigate to data
     let data = rawData;
@@ -140,28 +140,92 @@ export class DataTransformer {
     }
     // Handle array of objects
     else if (Array.isArray(data)) {
-      for (const item of data) {
-        // Handle datasets with tuples (Indian API)
-        if (item.values && Array.isArray(item.values) && item.values.length > 0) {
-          const metricName = item.metric || item.label || 'Value';
-          
-          for (const tuple of item.values) {
-            if (Array.isArray(tuple) && tuple.length >= 2) {
-              const row: any = {
-                date: tuple[0],
-                timestamp: tuple[0],
-                [metricName.toLowerCase()]: parseFloat(tuple[1]),
-                metric: metricName,
-              };
-              rows.push(row);
+      // Check if this is Indian API format with datasets
+      const hasDatasets = data.some(item => item.values && Array.isArray(item.values));
+      
+      if (hasDatasets) {
+        // Indian API: Pivot data - combine all metrics for each date into single row
+        const dateMap = new Map<string, any>();
+        
+        for (const item of data) {
+          if (item.values && Array.isArray(item.values) && item.values.length > 0) {
+            const metricName = (item.metric || item.label || 'Value').toLowerCase();
+            
+            for (const tuple of item.values) {
+              if (Array.isArray(tuple) && tuple.length >= 2) {
+                const date = tuple[0];
+                const value = parseFloat(tuple[1]);
+                
+                // Get or create row for this date
+                if (!dateMap.has(date)) {
+                  dateMap.set(date, {
+                    date: date,
+                    timestamp: date,
+                  });
+                }
+                
+                // Add metric value to the row
+                const row = dateMap.get(date);
+                row[metricName] = value;
+              }
             }
           }
-        } else {
-          // Regular array of objects with OHLCV
+        }
+        
+        // Convert map to array
+        rows.push(...Array.from(dateMap.values()));
+      } else {
+        // Regular array of objects with OHLCV
+        for (const item of data) {
           const row = this.extractFields(item, mapping);
           rows.push(row);
         }
       }
+    }
+
+    // Generate columns from actual data if rows exist
+    if (rows.length > 0) {
+      const allKeys = new Set<string>();
+      rows.forEach(row => {
+        Object.keys(row).forEach(key => allKeys.add(key));
+      });
+
+      // Create column definitions for all fields found in rows
+      const dataColumns: ColumnDefinition[] = [];
+      allKeys.forEach(key => {
+        // Skip if already in columns
+        if (columns.some(c => c.key === key)) return;
+
+        // Infer column type from first non-null value
+        let type: ColumnDefinition['type'] = 'string';
+        const sampleValue = rows.find(r => r[key] != null)?.[key];
+        
+        if (typeof sampleValue === 'number') {
+          if (key.includes('price') || key.includes('open') || key.includes('high') || 
+              key.includes('low') || key.includes('close') || key.includes('bid') || key.includes('ask')) {
+            type = 'currency';
+          } else if (key.includes('percent') || key.includes('change')) {
+            type = 'percentage';
+          } else {
+            type = 'number';
+          }
+        } else if (key.includes('date') || key.includes('time')) {
+          type = 'date';
+        }
+
+        dataColumns.push({
+          key,
+          label: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1'),
+          type,
+          align: type === 'currency' || type === 'number' || type === 'percentage' ? 'right' : 
+                 type === 'date' ? 'center' : 'left',
+          sortable: true,
+          filterable: true,
+        });
+      });
+
+      // Merge generated columns with mapped columns, preferring generated
+      columns = [...dataColumns];
     }
 
     // Add metadata columns if not already present
@@ -260,7 +324,25 @@ export class DataTransformer {
     };
 
     for (const [targetField, sourcePath] of Object.entries(allMappings)) {
-      const value = this.getNestedValue(sourceObj, sourcePath as string);
+      let value = this.getNestedValue(sourceObj, sourcePath as string);
+      
+      // If value not found, try fuzzy matching for Alpha Vantage style fields
+      // e.g., "open" should match "1. open", "2. high" etc.
+      if ((value === undefined || value === null) && typeof sourcePath === 'string') {
+        const targetName = sourcePath.split('.').pop()?.toLowerCase() || '';
+        
+        // Search for field with matching suffix (case-insensitive)
+        for (const [key, val] of Object.entries(sourceObj)) {
+          const keyLower = key.toLowerCase();
+          // Match if the key ends with the target field name
+          // e.g., "1. open" matches "open", "4. close" matches "close"
+          if (keyLower.endsWith(targetName) || keyLower.includes(targetName)) {
+            value = val;
+            break;
+          }
+        }
+      }
+      
       if (value !== undefined && value !== null) {
         // Convert string numbers to actual numbers
         if (typeof value === 'string' && !isNaN(parseFloat(value))) {
