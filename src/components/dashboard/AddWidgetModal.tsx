@@ -3,7 +3,10 @@
 import { useState, useEffect } from "react";
 import { X, ChevronRight, ChevronLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { WidgetConfig, Widget } from "../../types/widget";
+import { WidgetConfig, APIField, Widget } from "../../types/widget";
+import { loadTransformedData } from "../../utils/transformedDataLoader";
+import { transformApiData, shouldTransformApi } from "../../utils/apiTransformationService";
+import type { ColumnDefinition } from "../../utils/commonFinancialSchema";
 import { useApiTesting } from "../../hooks/useApiTesting";
 import { HeaderInput } from "./HeaderInput";
 import { DisplaySettings } from "./DisplaySettings";
@@ -60,6 +63,7 @@ export default function AddWidgetModal({
     apiTestSuccess,
     apiError,
     testApiConnection: performApiTest,
+    setApiFields,
   } = useApiTesting();
 
   useEffect(() => {
@@ -90,6 +94,7 @@ export default function AddWidgetModal({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [isOpen, editingWidget]);
 
+
   const handleFieldToggle = (fieldKey: string) => {
     setSelectedFields((prev) =>
       prev.includes(fieldKey)
@@ -103,6 +108,55 @@ export default function AddWidgetModal({
 
     const success = await performApiTest(apiUrl, headers);
     if (success) {
+      // After successful API test, check if we should transform the data
+      // and update apiFields with transformed column definitions
+      if (shouldTransformApi(apiUrl)) {
+        try {
+          // Fetch the data again to transform it
+          const needsProxy =
+            apiUrl.includes("finnhub.io") || apiUrl.includes("alphavantage.co");
+          
+          let response;
+          if (needsProxy) {
+            const proxyUrl = `/api/proxy?url=${encodeURIComponent(apiUrl)}`;
+            response = await fetch(proxyUrl, {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                ...headers,
+              },
+            });
+          } else {
+            response = await fetch(apiUrl, {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                ...headers,
+              },
+            });
+          }
+
+          if (response.ok) {
+            const rawData = await response.json();
+            const transformResult = await transformApiData(rawData, apiUrl);
+            
+            if (transformResult && transformResult.columns) {
+              // Convert ColumnDefinition[] to APIField[] for the field selector
+              const transformedFields = transformResult.columns.map((col: ColumnDefinition) => ({
+                key: col.key,
+                value: col.type,
+                type: col.type,
+              }));
+              
+              setApiFields(transformedFields);
+            }
+          }
+        } catch (error) {
+          console.error("Error transforming data:", error);
+          // Continue with raw fields if transformation fails
+        }
+      }
+      
       setCurrentPage(2);
     }
   };
@@ -328,6 +382,65 @@ export default function AddWidgetModal({
                       </motion.div>
                     )}
                   </motion.div>
+
+                  {/* Field Selection Preview on PAGE 1 - Show available fields after API test */}
+                  {apiTestSuccess && apiFields.length > 0 && (
+                    <motion.div
+                      custom={3}
+                      initial="hidden"
+                      animate="visible"
+                      variants={itemVariants}
+                    >
+                      <label className="block text-sm font-medium text-slate-900 dark:text-slate-300 mb-2">
+                        Available Fields Preview
+                      </label>
+                      <div className="space-y-2 max-h-60 overflow-y-auto bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
+                        {/* Show currently selected fields when editing */}
+                        {editingWidget && selectedFields.length > 0 && (
+                          <div className="mb-3">
+                            <h4 className="text-xs font-medium text-slate-700 dark:text-slate-400 mb-2">
+                              Currently Selected Fields ({selectedFields.length})
+                            </h4>
+                            <div className="flex flex-wrap gap-1">
+                              {selectedFields.map((field) => (
+                                <span
+                                  key={field}
+                                  className="text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded"
+                                >
+                                  {field}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Show available fields */}
+                        <h4 className="text-xs font-medium text-slate-700 dark:text-slate-400 mb-2">
+                          Available Fields ({apiFields.length})
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          {apiFields.slice(0, 10).map((field, index) => (
+                            <div
+                              key={field.key}
+                              className="text-xs bg-white dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-600"
+                            >
+                              <div className="font-medium text-slate-900 dark:text-white truncate">
+                                {field.key}
+                              </div>
+                              <div className="text-slate-500 dark:text-slate-400 text-[10px] truncate">
+                                {field.type}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {apiFields.length > 10 && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-2">
+                            +{apiFields.length - 10} more fields available on next page
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
 
                   {/* Headers Component */}
                   <HeaderInput
