@@ -53,11 +53,6 @@ const PERCENTAGE_PATTERNS = [
   /^-?\d+\.?\d*\s?percent/, // 10.5 percent
 ];
 
-const CURRENCY_PATTERNS = [
-  /^\$\d+/, // $100
-  /^\d+\.\d{2}$/, // 100.50 (common in financial data)
-];
-
 // Common metadata field names (case-insensitive)
 const METADATA_FIELDS = [
   'meta data',
@@ -172,14 +167,14 @@ function analyzeArrayItems(arr: unknown[]): { itemType: FieldType; itemSchema?: 
     const innerAnalysis = analyzeArrayItems(firstItem);
     
     // Detect tuple: check if inner array has consistent length and detect types of each position
-    const isTuple = arr.every((item: any) => Array.isArray(item) && item.length === firstItem.length);
+    const isTuple = arr.every((item: unknown) => Array.isArray(item) && item.length === firstItem.length);
     
     if (isTuple && firstItem.length <= 10) {
       // Analyze each position in the tuple
       const tupleTypes: FieldType[] = [];
       for (let i = 0; i < firstItem.length; i++) {
         const positionTypes = new Set<FieldType>();
-        arr.slice(0, Math.min(10, arr.length)).forEach((item: any) => {
+        arr.slice(0, Math.min(10, arr.length)).forEach((item: unknown) => {
           if (Array.isArray(item) && item[i] !== undefined) {
             positionTypes.add(detectFieldType(item[i], `position_${i}`));
           }
@@ -289,14 +284,14 @@ export function generateSchema(data: unknown): DataSchema {
     // For arrays, analyze the first item
     if (data.length > 0 && typeof data[0] === 'object') {
       const firstItem = data[0] as Record<string, unknown>;
-      for (const [key, value] of Object.entries(firstItem)) {
-        const fieldSchema = analyzeField(key, value);
-        schema.fields[key] = fieldSchema;
+      for (const [fieldKey, value] of Object.entries(firstItem)) {
+        const fieldSchema = analyzeField(fieldKey, value);
+        schema.fields[fieldKey] = fieldSchema;
         
-        if (isMetadataField(key)) {
-          schema.metadata![key] = fieldSchema;
+        if (isMetadataField(fieldKey)) {
+          schema.metadata![fieldKey] = fieldSchema;
         } else {
-          schema.dataFields![key] = fieldSchema;
+          schema.dataFields![fieldKey] = fieldSchema;
         }
       }
     }
@@ -328,7 +323,7 @@ export function printSchema(schema: DataSchema, indent = 0): string {
   // Print Data Fields (non-metadata)
   if (Object.keys(schema.dataFields || {}).length > 0) {
     output += `${spaces}=== DATA FIELDS ===\n`;
-    for (const [key, field] of Object.entries(schema.dataFields!)) {
+    for (const field of Object.values(schema.dataFields!)) {
       output += printField(field, indent + 2);
     }
     output += `${spaces}\n`;
@@ -337,7 +332,7 @@ export function printSchema(schema: DataSchema, indent = 0): string {
   // Print Metadata Fields (separated)
   if (Object.keys(schema.metadata || {}).length > 0) {
     output += `${spaces}=== METADATA FIELDS (Excluded) ===\n`;
-    for (const [key, field] of Object.entries(schema.metadata!)) {
+    for (const field of Object.values(schema.metadata!)) {
       output += printField(field, indent + 2);
     }
   }
@@ -366,11 +361,11 @@ function printField(field: FieldSchema, indent = 0): string {
 
   // Print nested object schema
   if (field.objectSchema) {
-    output += `${spaces}  {\n`;
-    for (const [key, nestedField] of Object.entries(field.objectSchema)) {
+    output += `${spaces}  {\\n`;
+    for (const nestedField of Object.values(field.objectSchema)) {
       output += printField(nestedField, indent + 4);
     }
-    output += `${spaces}  }\n`;
+    output += `${spaces}  }\\n`;
   }
 
   return output;

@@ -191,7 +191,10 @@ export async function GET(request: NextRequest) {
       headers["X-Api-Key"] = apiKeyHeader;
     }
 
-    logger.info(`Proxying request to: ${targetUrl}`);
+    logger.info(`Proxying request to: ${targetUrl}`, { 
+      hasApiKey: !!apiKeyHeader,
+      headers: Object.keys(headers)
+    });
     logger.debug(`Rate limit status for ${rateLimitKey}`, getRateLimitStatus(rateLimitKey, 60, 60000));
 
     // Make the API request with timeout

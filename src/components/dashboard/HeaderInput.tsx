@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
+import { useEffect } from "react";
 import { useHeaderManagement } from "../../hooks/useHeaderManagement";
 
 interface HeaderInputProps {
@@ -32,14 +33,17 @@ export function HeaderInput({
     headerValueInputRef,
   } = useHeaderManagement({ initialHeaders });
 
+  // Sync headers with parent whenever they change
+  useEffect(() => {
+    onHeaderChange?.(headers);
+  }, [headers, onHeaderChange]);
+
   const handleAddHeader = () => {
     addHeader();
-    onHeaderChange?.(headers);
   };
 
   const handleRemoveHeader = (key: string) => {
     removeHeader(key);
-    onHeaderChange?.({ ...headers, [key]: undefined } as Record<string, string>);
   };
 
   return (

@@ -10,6 +10,20 @@ export interface ChartDataPoint {
   high?: number;
   low?: number;
   close?: number;
+  timestamp?: number;
+  current?: number;
+  previousClose?: number;
+  change?: number;
+  changePercent?: number;
+  // Finnhub quote raw fields
+  c?: number;
+  d?: number;
+  dp?: number;
+  h?: number;
+  l?: number;
+  o?: number;
+  pc?: number;
+  t?: number;
 }
 
 export interface TableDataRow {
@@ -213,6 +227,12 @@ function autoDetectChartData(data: unknown): ChartDataPoint[] {
       return parseFinnhubChart(dataObj);
     }
 
+    // Finnhub Quote format (single object: {c, h, l, o, t, pc, d, dp})
+    if (dataObj.c && dataObj.h && dataObj.l && dataObj.o && dataObj.t && 
+        typeof dataObj.c === 'number' && typeof dataObj.t === 'number') {
+      return parseFinnhubQuote(dataObj);
+    }
+
     // Generic array format [{date, price, volume}, ...]
     if (Array.isArray(data)) {
       return parseGenericArrayChart(data);
@@ -360,7 +380,7 @@ function autoDetectTableData(data: unknown, pathHint?: string): TableDataRow[] {
       );
     }
 
-    // Finnhub to table conversion
+    // Finnhub candles to table conversion (arrays)
     if (dataObj.c && dataObj.t && Array.isArray(dataObj.c) && Array.isArray(dataObj.t)) {
       const c = dataObj.c as number[];
       const h = (dataObj.h as number[]) || [];
@@ -372,6 +392,7 @@ function autoDetectTableData(data: unknown, pathHint?: string): TableDataRow[] {
         const date = new Date(t[index] * 1000);
         return {
           date: date.toISOString().split("T")[0],
+          timestamp: t[index] * 1000,
           open: o[index],
           high: h[index],
           low: l[index],
@@ -379,6 +400,21 @@ function autoDetectTableData(data: unknown, pathHint?: string): TableDataRow[] {
           volume: v[index],
         };
       });
+    }
+
+    // Finnhub quote to table conversion (single object)
+    if (dataObj.c && dataObj.h && dataObj.l && dataObj.o && dataObj.t && 
+        typeof dataObj.c === 'number' && typeof dataObj.t === 'number') {
+      return [{
+        c: dataObj.c as number,
+        d: dataObj.d as number,
+        dp: dataObj.dp as number,
+        h: dataObj.h as number,
+        l: dataObj.l as number,
+        o: dataObj.o as number,
+        pc: dataObj.pc as number,
+        t: dataObj.t as number,
+      }];
     }
 
     // Single object to array
@@ -484,6 +520,22 @@ function autoDetectCardData(data: unknown): CardData {
       };
     }
 
+    // Finnhub quote - single data point (object with numbers)
+    if (dataObj.c && dataObj.h && dataObj.l && dataObj.o && dataObj.t && 
+        typeof dataObj.c === 'number' && typeof dataObj.t === 'number') {
+      return {
+        c: dataObj.c as number,
+        d: dataObj.d as number,
+        dp: dataObj.dp as number,
+        h: dataObj.h as number,
+        l: dataObj.l as number,
+        o: dataObj.o as number,
+        pc: dataObj.pc as number,
+        t: dataObj.t as number,
+        price: dataObj.c as number,
+      };
+    }
+
     // Direct object
     return dataObj as CardData;
   } catch (error) {
@@ -576,6 +628,30 @@ function parseFinnhubChart(data: Record<string, unknown>): ChartDataPoint[] {
       close: close,
     };
   });
+}
+
+// Parse Finnhub Quote API (single quote object)
+function parseFinnhubQuote(data: Record<string, unknown>): ChartDataPoint[] {
+  const timestamp = (data.t as number) * 1000;
+  const date = new Date(timestamp);
+  
+  return [{
+    date: date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+    fullDate: date.toISOString().split("T")[0],
+    c: data.c as number,
+    d: data.d as number,
+    dp: data.dp as number,
+    h: data.h as number,
+    l: data.l as number,
+    o: data.o as number,
+    pc: data.pc as number,
+    t: data.t as number,
+    price: data.c as number,
+  }];
 }
 
 function parseGenericArrayChart(data: unknown[]): ChartDataPoint[] {

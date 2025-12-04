@@ -7,17 +7,7 @@
 
 import { DataSchema, FieldSchema, FieldType } from './schemaGenerator';
 import {
-  EntityInfo,
-  EntityType,
-  PricePoint,
-  Quote,
-  TimeSeries,
-  TrendingItem,
-  FinancialDataset,
   ColumnDefinition,
-  ChangeDirection,
-  TimeframeType,
-  TransformationMetadata,
 } from './commonFinancialSchema';
 
 // ============================================================================
@@ -97,12 +87,6 @@ const METADATA_MAPPING_RULES: FieldMappingRule[] = [
   { targetField: 'lastRefreshed', sourcePatterns: ['last_refreshed', 'last refreshed', '3. last refreshed', 'updated_at'], priority: 9 },
 ];
 
-const TREND_MAPPING_RULES: FieldMappingRule[] = [
-  { targetField: 'shortTermTrend', sourcePatterns: ['short_term_trends', 'short_term_trend'], priority: 9 },
-  { targetField: 'longTermTrend', sourcePatterns: ['long_term_trends', 'long_term_trend'], priority: 9 },
-  { targetField: 'overallRating', sourcePatterns: ['overall_rating', 'rating'], priority: 9 },
-];
-
 // ============================================================================
 // MAPPING ENGINE
 // ============================================================================
@@ -158,13 +142,13 @@ export class SchemaMapper {
   /**
    * Extract entity info from schema
    */
-  private mapEntityInfo(fields: Record<string, FieldSchema>): Partial<EntityInfo> {
-    const entity: Partial<EntityInfo> = {};
+  private mapEntityInfo(fields: Record<string, FieldSchema>): Record<string, string> {
+    const entity: Record<string, string> = {};
 
     for (const rule of ENTITY_MAPPING_RULES) {
       const match = this.findSourceField([rule], rule.targetField, fields);
       if (match) {
-        (entity as any)[rule.targetField] = `{{${match.path}}}`;
+        entity[rule.targetField] = `{{${match.path}}}`;
       }
     }
 
@@ -174,14 +158,14 @@ export class SchemaMapper {
   /**
    * Extract price data mapping
    */
-  private mapPriceData(fields: Record<string, FieldSchema>): Partial<PricePoint> {
-    const price: Partial<PricePoint> = {};
+  private mapPriceData(fields: Record<string, FieldSchema>): Record<string, string> {
+    const price: Record<string, string> = {};
 
     // Map OHLCV fields
     for (const rule of PRICE_MAPPING_RULES) {
       const match = this.findSourceField([rule], rule.targetField, fields);
       if (match) {
-        (price as any)[rule.targetField] = `{{${match.path}}}`;
+        price[rule.targetField] = `{{${match.path}}}`;
       }
     }
 
@@ -189,7 +173,7 @@ export class SchemaMapper {
     for (const rule of TIME_MAPPING_RULES) {
       const match = this.findSourceField([rule], rule.targetField, fields);
       if (match) {
-        (price as any)[rule.targetField] = `{{${match.path}}}`;
+        price[rule.targetField] = `{{${match.path}}}`;
       }
     }
 
@@ -199,16 +183,16 @@ export class SchemaMapper {
   /**
    * Extract quote data mapping
    */
-  private mapQuoteData(fields: Record<string, FieldSchema>): Partial<Quote> {
-    const quote: Partial<Quote> = {
+  private mapQuoteData(fields: Record<string, FieldSchema>): Record<string, string> {
+    const quote: Record<string, string> = {
       ...this.mapPriceData(fields),
-    } as any;
+    };
 
     // Map quote-specific fields
     for (const rule of QUOTE_MAPPING_RULES) {
       const match = this.findSourceField([rule], rule.targetField, fields);
       if (match) {
-        (quote as any)[rule.targetField] = `{{${match.path}}}`;
+        quote[rule.targetField] = `{{${match.path}}}`;
       }
     }
 
@@ -284,7 +268,7 @@ export class SchemaMapper {
     const requiredFields = ['open', 'high', 'low', 'close', 'volume'];
     let matchCount = 0;
 
-    for (const [key, field] of Object.entries(fields)) {
+    for (const key of Object.keys(fields)) {
       const lowerKey = key.toLowerCase();
       if (requiredFields.some(req => lowerKey.includes(req))) {
         matchCount++;
@@ -342,14 +326,14 @@ export class SchemaMapper {
     for (const pathSegment of structure.dataPath) {
       if (pathSegment === '[DATE]') continue; // Skip date key - use its objectSchema
       
-      const field = dataFields[pathSegment];
-      if (!field) break;
+      const segmentField = dataFields[pathSegment];
+      if (!segmentField) break;
 
       // For [DATE] pattern, get its objectSchema
-      if (field.objectSchema && field.objectSchema['[DATE]']) {
-        dataFields = field.objectSchema['[DATE]'].objectSchema || field.objectSchema;
-      } else if (field.objectSchema) {
-        dataFields = field.objectSchema;
+      if (segmentField.objectSchema && segmentField.objectSchema['[DATE]']) {
+        dataFields = segmentField.objectSchema['[DATE]'].objectSchema || segmentField.objectSchema;
+      } else if (segmentField.objectSchema) {
+        dataFields = segmentField.objectSchema;
       }
     }
 
@@ -388,7 +372,7 @@ export class SchemaMapper {
     };
   }
 
-  private extractMappingPaths(obj: any): Record<string, string> {
+  private extractMappingPaths(obj: Record<string, string>): Record<string, string> {
     const result: Record<string, string> = {};
     
     for (const [key, value] of Object.entries(obj)) {
@@ -414,7 +398,7 @@ export class SchemaMapper {
       ...(mapping.quoteMapping || {}),
     };
 
-    for (const [targetField, sourcePath] of Object.entries(allMappings)) {
+    for (const [targetField] of Object.entries(allMappings)) {
       const column: ColumnDefinition = {
         key: targetField,
         label: this.formatLabel(targetField),
