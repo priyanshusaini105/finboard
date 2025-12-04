@@ -1,7 +1,8 @@
+"use client"
 import { motion } from "framer-motion";
 import { X, Edit2, Check, X as Cancel } from "lucide-react";
 import { useEffect } from "react";
-import { useHeaderManagement } from "../../hooks/useHeaderManagement";
+import { useHeaderManagement } from "@/src/hooks";
 
 interface HeaderInputProps {
   onHeaderChange?: (headers: Record<string, string>) => void;

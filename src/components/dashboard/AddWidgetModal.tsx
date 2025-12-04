@@ -3,15 +3,10 @@
 import { useState, useEffect } from "react";
 import { X, ChevronRight, ChevronLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { WidgetConfig, Widget } from "../../types/widget";
-import { transformApiData, shouldTransformApi } from "../../utils/apiTransformationService";
-import type { ColumnDefinition } from "../../utils/commonFinancialSchema";
-import { useApiTesting } from "../../hooks/useApiTesting";
-import { HeaderInput } from "./HeaderInput";
-import { DisplaySettings } from "./DisplaySettings";
-import { FieldSelector } from "./FieldSelector";
-import { UrlParamsInput } from "./UrlParamsInput";
-import { parseUrlParams, reconstructUrl, type UrlParam } from "../../utils/urlParamsParser";
+import { WidgetConfig, Widget } from "@/src/types";
+import { transformApiData, shouldTransformApi, type ColumnDefinition, parseUrlParams, reconstructUrl, type UrlParam } from "@/src/utils";
+import { useApiTesting } from "@/src/hooks";
+import { HeaderInput, DisplaySettings, FieldSelector, UrlParamsInput } from ".";
 
 interface AddWidgetModalProps {
   isOpen: boolean;

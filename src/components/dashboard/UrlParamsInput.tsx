@@ -1,7 +1,8 @@
+"use client"
 import { motion } from "framer-motion";
 import { X, Plus } from "lucide-react";
 import { useState, useEffect } from "react";
-import { UrlParam, addParam, removeParam, updateParam } from "../../utils/urlParamsParser";
+import { UrlParam, addParam, removeParam, updateParam } from "@/src/utils";
 
 interface UrlParamsInputProps {
   params: UrlParam[];

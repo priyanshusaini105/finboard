@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useStore } from "../store/useStore";
+import { useStore } from "@/src/store";
 
 const DASHBOARD_CONFIG_KEY = "finboard_dashboard_config";
 

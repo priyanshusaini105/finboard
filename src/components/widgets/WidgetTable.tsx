@@ -11,12 +11,10 @@ import {
   Filter,
   XCircle,
 } from "lucide-react";
-import { Widget } from "../../types/widget";
-import { useWidgetData } from "../../hooks/useWidgetData";
-import { type ApiError } from "../../utils/errorHandler";
-import { mapFieldPath } from "../../utils/apiAdapters";
-import type { ColumnDefinition } from "../../utils/commonFinancialSchema";
-import { useStore } from "../../store/useStore";
+import { Widget } from "@/src/types";
+import { useWidgetData } from "@/src/hooks";
+import { type ApiError, type ColumnDefinition, mapFieldPath } from "@/src/utils";
+import { useStore } from "@/src/store";
 
 interface WidgetTableProps {
   widget: Widget;

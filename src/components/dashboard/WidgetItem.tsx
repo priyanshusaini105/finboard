@@ -1,10 +1,8 @@
 "use client";
 
 import React from "react";
-import { Widget, WidgetType } from "../../types/widget";
-import WidgetCard from "../widgets/WidgetCard";
-import WidgetTable from "../widgets/WidgetTable";
-import WidgetChart from "../widgets/WidgetChart";
+import { Widget, WidgetType } from "@/src/types";
+import { WidgetCard, WidgetTable, WidgetChart } from "@/src/components/widgets";
 import { GripVertical, Settings, Trash2, Maximize, RefreshCw } from "lucide-react";
 
 interface WidgetItemProps {

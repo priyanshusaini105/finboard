@@ -1,4 +1,4 @@
-require('@testing-library/jest-dom');
+import '@testing-library/jest-dom';
 
 // Store original Date for use in tests
 const OriginalDate = global.Date;

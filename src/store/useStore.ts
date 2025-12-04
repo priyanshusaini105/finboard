@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { Widget, WidgetConfig, WidgetType } from "../types/widget";
+import { Widget, WidgetConfig, WidgetType } from "@/src/types";
+
+interface DashboardConfig {
+  theme?: "dark" | "light";
+  layoutMode?: "grid" | "list";
+  refreshInterval?: number;
+}
 
 interface DashboardState {
   // Dashboard UI state
@@ -36,7 +42,7 @@ interface DashboardState {
   updateWidgetHeight: (id: string, height: number) => void;
   
   // Template actions
-  loadDashboardFromTemplate: (config: any, widgetsData: any[]) => void;
+  loadDashboardFromTemplate: (config: DashboardConfig, widgetsData: Widget[]) => void;
 }
 
 const DASHBOARD_CONFIG_KEY = "finboard_dashboard_config";
@@ -218,10 +224,10 @@ export const useStore = create<DashboardState>()(
         })),
 
       // Template actions
-      loadDashboardFromTemplate: (config: any, widgetsData: any[]) =>
+      loadDashboardFromTemplate: (config: DashboardConfig, widgetsData: Widget[]) =>
         set({
-          theme: (config.theme as "dark" | "light") || "dark",
-          layoutMode: (config.layoutMode as "grid" | "list") || "grid",
+          theme: config.theme || "dark",
+          layoutMode: config.layoutMode || "grid",
           refreshInterval: config.refreshInterval || 30,
           widgets: widgetsData.map((widget) => ({
             ...widget,

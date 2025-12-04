@@ -1,22 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { WidgetType, WidgetConfig } from "../../types/widget";
-import { useStore } from "../../store/useStore";
-import DashboardHeader from "./DashboardHeader";
-import AddWidgetModal from "./AddWidgetModal";
-import AddWidgetCard from "./AddWidgetCard";
-import WidgetGrid from "./WidgetGrid";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import WidgetCard from "../widgets/WidgetCard";
-import WidgetTable from "../widgets/WidgetTable";
-import WidgetChart from "../widgets/WidgetChart";
+import { WidgetType, WidgetConfig } from "@/src/types";
+import { useStore } from "@/src/store";
+import { DashboardHeader, AddWidgetModal, AddWidgetCard, WidgetGrid } from ".";
+import { WidgetCard, WidgetTable, WidgetChart } from "@/src/components/widgets";
 import { RefreshCw } from "lucide-react";
+import { Dialog, DialogContent } from "../ui";
 
 export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);

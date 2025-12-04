@@ -2,8 +2,8 @@
 
 import React, { useState, useCallback, useMemo } from "react";
 import { Responsive, WidthProvider, Layout, Layouts } from "react-grid-layout";
-import { Widget } from "../../types/widget";
-import WidgetItem from "./WidgetItem";
+import { Widget } from "@/src/types";
+import { WidgetItem } from ".";
 
 interface WidgetGridProps {
   widgets: Widget[];

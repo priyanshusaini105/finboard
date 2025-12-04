@@ -3,7 +3,14 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Lock, Zap, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useStore } from "../../store/useStore";
+import { useStore } from "@/src/store";
+import { Widget } from "@/src/types";
+
+interface DashboardConfig {
+  theme?: "dark" | "light";
+  layoutMode?: "grid" | "list";
+  refreshInterval?: number;
+}
 
 interface Template {
   id: string;
@@ -11,8 +18,8 @@ interface Template {
   description: string;
   thumbnail: string;
   version: string;
-  config: any;
-  widgets: any[];
+  config: DashboardConfig;
+  widgets: Widget[];
 }
 
 interface TemplatesModalProps {
@@ -74,7 +81,7 @@ export function TemplatesModal({ isOpen, onClose }: TemplatesModalProps) {
 
   // Extract unique API keys needed from template widgets
   const getRequiredApiKeys = (template: Template) => {
-    const apiUrls = template.widgets.map((w) => w.apiUrl);
+    const apiUrls = template.widgets.map((w) => w.apiUrl).filter((url): url is string => url != null);
     const keys: { [key: string]: string } = {};
 
     apiUrls.forEach((url) => {
@@ -108,10 +115,10 @@ export function TemplatesModal({ isOpen, onClose }: TemplatesModalProps) {
     // Replace API keys in widgets
     const updatedWidgets = selectedTemplate.widgets.map((widget) => {
       let updatedUrl = widget.apiUrl;
-      let updatedHeaders = { ...widget.headers };
+      const updatedHeaders = { ...widget.headers };
 
       // Replace Finnhub token
-      if (apiKeys.finnhub_token && updatedUrl.includes("finnhub.io")) {
+      if (apiKeys.finnhub_token && updatedUrl && updatedUrl.includes("finnhub.io")) {
         updatedUrl = updatedUrl.replace(
           /token=[^&]*/,
           `token=${encodeURIComponent(apiKeys.finnhub_token)}`
@@ -119,7 +126,7 @@ export function TemplatesModal({ isOpen, onClose }: TemplatesModalProps) {
       }
 
       // Replace Alpha Vantage key
-      if (apiKeys.alphavantage_key && updatedUrl.includes("alphavantage.co")) {
+      if (apiKeys.alphavantage_key && updatedUrl && updatedUrl.includes("alphavantage.co")) {
         updatedUrl = updatedUrl.replace(
           /apikey=[^&]*/,
           `apikey=${encodeURIComponent(apiKeys.alphavantage_key)}`
@@ -127,7 +134,7 @@ export function TemplatesModal({ isOpen, onClose }: TemplatesModalProps) {
       }
 
       // Replace Indian Stock API key
-      if (apiKeys.indianstock_key && updatedUrl.includes("stock.indianapi.in")) {
+      if (apiKeys.indianstock_key && updatedUrl && updatedUrl.includes("stock.indianapi.in")) {
         updatedHeaders["X-Api-Key"] = apiKeys.indianstock_key;
       }
 
@@ -357,7 +364,7 @@ export function TemplatesModal({ isOpen, onClose }: TemplatesModalProps) {
                       More templates coming soon
                     </p>
                     <p className="text-sm text-slate-600 dark:text-slate-400">
-                      We're working on additional pre-built templates for
+                      We&apos;re working on additional pre-built templates for
                       cryptocurrency, financial data, and more. Stay tuned!
                     </p>
                   </div>

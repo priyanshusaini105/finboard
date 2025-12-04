@@ -1,7 +1,8 @@
+"use client"
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
-import { APIField } from "../../types/widget";
+import { APIField } from "@/src/types";
 
 interface FieldSelectorProps {
   apiFields: APIField[];

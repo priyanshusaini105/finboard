@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { RefreshCw, Settings, X } from "lucide-react";
-import { Widget } from "../../types/widget";
-import { mapFieldPath } from "../../utils/apiAdapters";
-import { useWidgetData } from "../../hooks/useWidgetData";
-import { useStore } from "../../store/useStore";
+import { Widget } from "@/src/types";
+import { mapFieldPath } from "@/src/utils";
+import { useWidgetData } from "@/src/hooks";
+import { useStore } from "@/src/store";
 
 interface WidgetCardProps {
   widget: Widget;

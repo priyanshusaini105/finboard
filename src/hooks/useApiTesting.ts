@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { APIField } from "../types/widget";
+import { APIField } from "@/src/types";
 
 export function useApiTesting() {
   const [isTestingApi, setIsTestingApi] = useState(false);

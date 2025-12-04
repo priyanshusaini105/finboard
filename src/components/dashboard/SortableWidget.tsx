@@ -2,8 +2,8 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Widget } from "../../types/widget";
-import SortableWidgetContent from "./SortableWidgetContent";
+import { Widget } from "@/src/types";
+import { SortableWidgetContent } from ".";
 
 interface SortableWidgetProps {
   widget: Widget;

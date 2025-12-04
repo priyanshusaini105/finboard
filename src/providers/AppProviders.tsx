@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactNode } from "react";
-import { ThemeProvider } from "../contexts/ThemeContext";
+import { ThemeProvider } from "@/src/contexts";
 
 // Create a query client with optimized defaults
 const queryClient = new QueryClient({

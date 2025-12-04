@@ -1,4 +1,4 @@
-import { Widget } from "../types/widget";
+import { Widget } from "@/src/types";
 
 export interface DashboardBackup {
   version: string;

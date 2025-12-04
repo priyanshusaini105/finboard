@@ -2,14 +2,14 @@
 
 import { Plus, BarChart3, Download, Upload, RotateCcw, Zap } from "lucide-react";
 import { useRef, useState } from "react";
-import ThemeToggle from "../ui/ThemeToggle";
-import { useTheme } from "../../contexts/ThemeContext";
-import { useStore } from "../../store/useStore";
-import { TemplatesModal } from "./TemplatesModal";
+import { ThemeToggle } from "@/src/components/ui";
+import { useTheme } from "@/src/contexts";
+import { useStore } from "@/src/store";
+import { TemplatesModal } from ".";
 import {
   exportDashboardConfig,
   importDashboardConfig,
-} from "../../utils/configExportImport";
+} from "@/src/utils";
 
 interface DashboardHeaderProps {
   onAddWidget: () => void;

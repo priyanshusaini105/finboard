@@ -1,8 +1,9 @@
-import { DataTransformer } from '../dataTransformer';
-import { SchemaMapper } from '../schemaMapper';
-import { DataSchema } from '../schemaGenerator';
+import { DataTransformer, SchemaMapper, DataSchema } from '@/src/utils';
 
-jest.mock('../schemaMapper');
+jest.mock('@/src/utils', () => ({
+  ...jest.requireActual('@/src/utils'),
+  SchemaMapper: jest.fn(),
+}));
 
 describe('DataTransformer', () => {
   let transformer: DataTransformer;

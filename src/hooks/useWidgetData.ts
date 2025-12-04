@@ -3,19 +3,15 @@ import {
   useQueryClient,
   UseQueryOptions,
 } from "@tanstack/react-query";
-import { Widget } from "../types/widget";
-import { transformData } from "../utils/apiAdapters";
+import { Widget } from "@/src/types";
 import {
+  transformData,
   loadTransformedData,
   getTableData,
   getChartData,
   getCardData,
-} from "../utils/transformedDataLoader";
-import {
   transformApiData,
   shouldTransformApi,
-} from "../utils/apiTransformationService";
-import {
   createApiError,
   handleApiResponse,
   formatErrorForDisplay,
@@ -23,12 +19,10 @@ import {
   ErrorCategory,
   RecoveryStrategy,
   type ApiError,
-} from "../utils/errorHandler";
-import {
   getRateLimiterForUrl,
   waitForRateLimitReset,
-} from "../utils/rateLimiter";
-import type { ColumnDefinition } from "../utils/commonFinancialSchema";
+  type ColumnDefinition,
+} from "@/src/utils";
 
 interface WidgetDataResult {
   data: unknown;

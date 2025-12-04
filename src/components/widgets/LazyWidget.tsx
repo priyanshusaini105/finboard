@@ -1,17 +1,17 @@
 "use client";
 
 import { Suspense } from "react";
-import { Widget, WidgetType } from "../../types/widget";
+import { Widget, WidgetType } from "@/src/types";
 import {
   LazyWidgetChart,
   LazyWidgetTable,
   LazyWidgetCard,
-} from "../LazyComponents";
+} from "@/src/components/LazyComponents";
 import {
   ChartSkeleton,
   TableSkeleton,
   WidgetSkeleton,
-} from "../ui/LoadingSkeletons";
+} from "@/src/components/ui";
 
 interface LazyWidgetProps {
   widget: Widget;

@@ -1,8 +1,7 @@
 import { Suspense } from "react";
 import { Metadata } from "next";
-import { LazyDashboard } from "../src/components/LazyComponents";
-import DashboardSkeleton from "../src/components/ui/DashboardSkeleton";
-import { LazyCacheInspector } from "../src/components/LazyComponents";
+import { LazyDashboard, LazyCacheInspector } from "@/src/components";
+import { DashboardSkeleton } from "@/src/components/ui";
 
 // Server-side metadata generation for SEO
 export const metadata: Metadata = {

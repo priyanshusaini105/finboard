@@ -18,11 +18,11 @@ import {
 } from "recharts";
 import { RefreshCw, Settings, X, TrendingUp, TrendingDown, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Widget } from "../../types/widget";
-import { getSymbolFromUrl } from "../../utils/apiAdapters";
-import { useWidgetData } from "../../hooks/useWidgetData";
-import { ChartSkeleton } from "../ui/LoadingSkeletons";
-import { useStore } from "../../store/useStore";
+import { Widget } from "@/src/types";
+import { getSymbolFromUrl } from "@/src/utils";
+import { useWidgetData } from "@/src/hooks";
+import { ChartSkeleton } from "@/src/components/ui";
+import { useStore } from "@/src/store";
 
 // Chart data types
 interface ChartDataPoint {

@@ -1,10 +1,8 @@
 "use client";
 
 import { memo } from "react";
-import { Widget, WidgetType } from "../../types/widget";
-import WidgetCard from "../widgets/WidgetCard";
-import WidgetTable from "../widgets/WidgetTable";
-import WidgetChart from "../widgets/WidgetChart";
+import { Widget, WidgetType } from "@/src/types";
+import { WidgetCard, WidgetTable, WidgetChart } from "@/src/components/widgets";
 
 interface SortableWidgetContentProps {
   widget: Widget;

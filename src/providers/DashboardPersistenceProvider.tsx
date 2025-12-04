@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
-import { useDashboardPersistence } from "../hooks/useDashboardPersistence";
+import { useDashboardPersistence } from "@/src/hooks";
 
 interface DashboardPersistenceProps {
   children: ReactNode;
