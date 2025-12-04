@@ -5,10 +5,10 @@
 ## 🎬 Live Demo
 
 <div align="center">
-  <video width="80%" controls style="border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-    <source src="https://github.com/user-attachments/assets/b97d8ccb-554a-4503-9638-5daa23c93bfb" type="video/mp4">
+  <video width="80%" poster="./public/thumbnail.png" controls style="border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+    <source src="https://res.cloudinary.com/dna0hel5p/video/upload/v1764887494/finboard_qumd0k.mp4" type="video/mp4">
     Your browser does not support the video tag. 
-    <a href="https://github.com/user-attachments/assets/b97d8ccb-554a-4503-9638-5daa23c93bfb">📥 Watch Demo Video</a>
+    <a href="https://res.cloudinary.com/dna0hel5p/video/upload/v1764887494/finboard_qumd0k.mp4">📥 Watch Demo Video</a>
   </video>
   
   **[▶️ Watch Complete Walkthrough](https://www.youtube.com/watch?v=r2C5QzJLll4)** - Also available on YouTube
