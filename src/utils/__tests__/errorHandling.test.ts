@@ -362,7 +362,7 @@ describe('Rate Limiting Logic', () => {
     }
 
     const createRateLimiter = (config: RateLimitConfig) => {
-      let bucket = createBucketHelper(config.burstSize, config.requestsPerSecond);
+      const bucket = createBucketHelper(config.burstSize, config.requestsPerSecond);
 
       const isAllowed = (now: number): boolean => {
         refillTokensHelper(bucket, now);

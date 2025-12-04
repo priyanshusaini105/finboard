@@ -262,7 +262,7 @@ describe('Utility Functions', () => {
       const result: Record<string, any> = {};
 
       for (const [targetField, sourcePath] of Object.entries(mapping)) {
-        let value = sourceObj[sourcePath];
+        const value = sourceObj[sourcePath];
 
         // Convert string numbers to actual numbers
         if (typeof value === 'string' && !isNaN(parseFloat(value))) {

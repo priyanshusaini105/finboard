@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Edit2, Check, X as Cancel } from "lucide-react";
 import { useEffect } from "react";
 import { useHeaderManagement } from "../../hooks/useHeaderManagement";
 
@@ -29,6 +29,14 @@ export function HeaderInput({
     setNewHeaderValue,
     addHeader,
     removeHeader,
+    startEditingHeader,
+    cancelEditingHeader,
+    saveEditingHeader,
+    editingHeader,
+    editingKey,
+    setEditingKey,
+    editingValue,
+    setEditingValue,
     addQuickHeader,
     headerValueInputRef,
   } = useHeaderManagement({ initialHeaders });
@@ -44,6 +52,18 @@ export function HeaderInput({
 
   const handleRemoveHeader = (key: string) => {
     removeHeader(key);
+  };
+
+  const handleStartEditing = (key: string) => {
+    startEditingHeader(key);
+  };
+
+  const handleCancelEditing = () => {
+    cancelEditingHeader();
+  };
+
+  const handleSaveEditing = () => {
+    saveEditingHeader();
   };
 
   return (
@@ -123,31 +143,79 @@ export function HeaderInput({
           {Object.entries(headers).map(([key, value]) => (
             <motion.div
               key={key}
-              className="flex items-center justify-between bg-slate-100 dark:bg-slate-700 p-2 rounded border border-slate-300 dark:border-slate-600"
+              className="bg-slate-100 dark:bg-slate-700 p-2 rounded border border-slate-300 dark:border-slate-600"
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
             >
-              <div className="flex-1">
-                <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                  {key}:
-                </span>
-                <span className="text-sm text-slate-700 dark:text-slate-300 ml-2">
-                  {key.toLowerCase().includes("authorization") ||
-                  key.toLowerCase().includes("key")
-                    ? value.length > 6 ? value.substring(0, 6) + '*'.repeat(value.length - 6) : value
-                    : value}
-                </span>
-              </div>
-              <motion.button
-                type="button"
-                onClick={() => handleRemoveHeader(key)}
-                className="text-red-400 hover:text-red-300 text-sm"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-              >
-                <X className="w-4 h-4" />
-              </motion.button>
+              {editingHeader === key ? (
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={editingKey}
+                    onChange={(e) => setEditingKey(e.target.value)}
+                    className="flex-1 bg-white dark:bg-slate-600 border border-slate-300 dark:border-slate-500 rounded px-2 py-1 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <input
+                    type="text"
+                    value={editingValue}
+                    onChange={(e) => setEditingValue(e.target.value)}
+                    className="flex-1 bg-white dark:bg-slate-600 border border-slate-300 dark:border-slate-500 rounded px-2 py-1 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <motion.button
+                    type="button"
+                    onClick={handleSaveEditing}
+                    className="text-green-600 hover:text-green-500"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                  >
+                    <Check className="w-4 h-4" />
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    onClick={handleCancelEditing}
+                    className="text-red-400 hover:text-red-300"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                  >
+                    <Cancel className="w-4 h-4" />
+                  </motion.button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                      {key}:
+                    </span>
+                    <span className="text-sm text-slate-700 dark:text-slate-300 ml-2">
+                      {key.toLowerCase().includes("authorization") ||
+                      key.toLowerCase().includes("key")
+                        ? value.length > 6 ? value.substring(0, 6) + '*'.repeat(value.length - 6) : value
+                        : value}
+                    </span>
+                  </div>
+                  <div className="flex space-x-1">
+                    <motion.button
+                      type="button"
+                      onClick={() => handleStartEditing(key)}
+                      className="text-blue-400 hover:text-blue-300 text-sm"
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={() => handleRemoveHeader(key)}
+                      className="text-red-400 hover:text-red-300 text-sm"
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                    >
+                      <X className="w-4 h-4" />
+                    </motion.button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           ))}
         </div>

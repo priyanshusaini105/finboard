@@ -10,6 +10,8 @@ import { useApiTesting } from "../../hooks/useApiTesting";
 import { HeaderInput } from "./HeaderInput";
 import { DisplaySettings } from "./DisplaySettings";
 import { FieldSelector } from "./FieldSelector";
+import { UrlParamsInput } from "./UrlParamsInput";
+import { parseUrlParams, reconstructUrl, type UrlParam } from "../../utils/urlParamsParser";
 
 interface AddWidgetModalProps {
   isOpen: boolean;
@@ -48,6 +50,7 @@ export default function AddWidgetModal({
 }: AddWidgetModalProps) {
   const [widgetName, setWidgetName] = useState("");
   const [apiUrl, setApiUrl] = useState("");
+  const [urlParams, setUrlParams] = useState<UrlParam[]>([]);
   const [refreshInterval, setRefreshInterval] = useState(30);
   const [displayMode, setDisplayMode] = useState<"card" | "table" | "chart">(
     "card"
@@ -63,6 +66,8 @@ export default function AddWidgetModal({
     apiError,
     testApiConnection: performApiTest,
     setApiFields,
+    setApiTestSuccess,
+    setApiError,
   } = useApiTesting();
 
   useEffect(() => {
@@ -70,14 +75,20 @@ export default function AddWidgetModal({
     if (!isOpen) {
       setWidgetName("");
       setApiUrl("");
+      setUrlParams([]);
       setRefreshInterval(30);
       setDisplayMode("card");
       setSelectedFields([]);
       setHeaders({});
       setCurrentPage(1);
+      setApiFields([]);
+      setApiTestSuccess(false);
+      setApiError("");
     } else if (editingWidget) {
       setWidgetName(editingWidget.title);
       setApiUrl(editingWidget.apiUrl || "");
+      const { params } = parseUrlParams(editingWidget.apiUrl || "");
+      setUrlParams(params);
       setRefreshInterval(editingWidget.refreshInterval);
       setDisplayMode(
         editingWidget.type === "card"
@@ -89,9 +100,22 @@ export default function AddWidgetModal({
       setSelectedFields(editingWidget.selectedFields || []);
       setHeaders(editingWidget.headers || {});
       setCurrentPage(1);
+    } else {
+      // Reset for creating new widget
+      setWidgetName("");
+      setApiUrl("");
+      setUrlParams([]);
+      setRefreshInterval(30);
+      setDisplayMode("card");
+      setSelectedFields([]);
+      setHeaders({});
+      setCurrentPage(1);
+      setApiFields([]);
+      setApiTestSuccess(false);
+      setApiError("");
     }
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [isOpen, editingWidget]);
+  }, [isOpen, editingWidget, setApiFields, setApiTestSuccess, setApiError]);
 
 
   const handleFieldToggle = (fieldKey: string) => {
@@ -102,22 +126,40 @@ export default function AddWidgetModal({
     );
   };
 
+  const handleUrlParamsChange = (newParams: UrlParam[]) => {
+    setUrlParams(newParams);
+    const { baseUrl } = parseUrlParams(apiUrl);
+    const newUrl = reconstructUrl(baseUrl, newParams);
+    setApiUrl(newUrl);
+  };
+
+  const handleApiUrlChange = (url: string) => {
+    setApiUrl(url);
+    const { params } = parseUrlParams(url);
+    setUrlParams(params);
+  };
+
   const handleNextStep = async () => {
     if (!widgetName || !apiUrl) return;
 
-    const success = await performApiTest(apiUrl, headers);
+    // Reconstruct URL with current params
+    const { baseUrl } = parseUrlParams(apiUrl);
+    const finalUrl = reconstructUrl(baseUrl, urlParams);
+    setApiUrl(finalUrl);
+
+    const success = await performApiTest(finalUrl, headers);
     if (success) {
       // After successful API test, check if we should transform the data
       // and update apiFields with transformed column definitions
-      if (shouldTransformApi(apiUrl)) {
+      if (shouldTransformApi(finalUrl)) {
         try {
           // Fetch the data again to transform it
           const needsProxy =
-            apiUrl.includes("finnhub.io") || apiUrl.includes("alphavantage.co");
+            finalUrl.includes("finnhub.io") || finalUrl.includes("alphavantage.co");
           
           let response;
           if (needsProxy) {
-            const proxyUrl = `/api/proxy?url=${encodeURIComponent(apiUrl)}`;
+            const proxyUrl = `/api/proxy?url=${encodeURIComponent(finalUrl)}`;
             response = await fetch(proxyUrl, {
               method: "GET",
               headers: {
@@ -126,7 +168,7 @@ export default function AddWidgetModal({
               },
             });
           } else {
-            response = await fetch(apiUrl, {
+            response = await fetch(finalUrl, {
               method: "GET",
               headers: {
                 "Content-Type": "application/json",
@@ -137,7 +179,7 @@ export default function AddWidgetModal({
 
           if (response.ok) {
             const rawData = await response.json();
-            const transformResult = await transformApiData(rawData, apiUrl);
+            const transformResult = await transformApiData(rawData, finalUrl);
             
             if (transformResult && transformResult.columns) {
               // Convert ColumnDefinition[] to APIField[] for the field selector
@@ -260,7 +302,7 @@ export default function AddWidgetModal({
                       <motion.button
                         type="button"
                         onClick={() => {
-                          setApiUrl("https://stock.indianapi.in/trending");
+                          handleApiUrlChange("https://stock.indianapi.in/trending");
                           setWidgetName("Trending Stocks");
                           setHeaders({ "X-Api-Key": "your-api-key-here" });
                         }}
@@ -273,7 +315,7 @@ export default function AddWidgetModal({
                       <motion.button
                         type="button"
                         onClick={() => {
-                          setApiUrl(
+                          handleApiUrlChange(
                             "https://stock.indianapi.in/historical_data?stock_name=RELIANCE&period=1m&filter=price"
                           );
                           setWidgetName("RELIANCE Stock Chart");
@@ -289,7 +331,7 @@ export default function AddWidgetModal({
                       <motion.button
                         type="button"
                         onClick={() => {
-                          setApiUrl(
+                          handleApiUrlChange(
                             "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=IBM&apikey=demo"
                           );
                           setWidgetName("IBM Stock Chart");
@@ -305,7 +347,7 @@ export default function AddWidgetModal({
                       <motion.button
                         type="button"
                         onClick={() => {
-                          setApiUrl(
+                          handleApiUrlChange(
                             "https://finnhub.io/api/v1/quote?symbol=AAPL&token=demo"
                           );
                           setWidgetName("AAPL Stock Chart");
@@ -353,7 +395,7 @@ export default function AddWidgetModal({
                     <input
                       type="text"
                       value={apiUrl}
-                      onChange={(e) => setApiUrl(e.target.value)}
+                      onChange={(e) => handleApiUrlChange(e.target.value)}
                       placeholder="e.g., https://api.coinbase.com/v2/exchange-rates?currency=BTC"
                       className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     />
@@ -382,7 +424,11 @@ export default function AddWidgetModal({
                     )}
                   </motion.div>
 
-                  {/* Field Selection Preview on PAGE 1 - Show available fields after API test */}
+                  {/* URL Parameters Input */}
+                  <UrlParamsInput
+                    params={urlParams}
+                    onParamsChange={handleUrlParamsChange}
+                  />                  {/* Field Selection Preview on PAGE 1 - Show available fields after API test */}
                   {apiTestSuccess && apiFields.length > 0 && (
                     <motion.div
                       custom={3}
@@ -440,9 +486,9 @@ export default function AddWidgetModal({
                       </div>
                     </motion.div>
                   )}
-
                   {/* Headers Component */}
                   <HeaderInput
+                    key={editingWidget?.id || "new-widget"}
                     onHeaderChange={setHeaders}
                     initialHeaders={headers}
                   />

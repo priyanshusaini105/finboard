@@ -5,11 +5,12 @@ interface UseHeaderManagementProps {
 }
 
 export function useHeaderManagement(props?: UseHeaderManagementProps) {
-  const [headers, setHeaders] = useState<Record<string, string>>(
-    props?.initialHeaders || {}
-  );
+  const [headers, setHeaders] = useState<Record<string, string>>(props?.initialHeaders || {});
   const [newHeaderKey, setNewHeaderKey] = useState("");
   const [newHeaderValue, setNewHeaderValue] = useState("");
+  const [editingHeader, setEditingHeader] = useState<string | null>(null);
+  const [editingKey, setEditingKey] = useState("");
+  const [editingValue, setEditingValue] = useState("");
   const headerValueInputRef = useRef<HTMLInputElement>(null);
 
   const addHeader = () => {
@@ -29,6 +30,32 @@ export function useHeaderManagement(props?: UseHeaderManagementProps) {
       delete newHeaders[key];
       return newHeaders;
     });
+  };
+
+  const startEditingHeader = (key: string) => {
+    setEditingHeader(key);
+    setEditingKey(key);
+    setEditingValue(headers[key]);
+  };
+
+  const cancelEditingHeader = () => {
+    setEditingHeader(null);
+    setEditingKey("");
+    setEditingValue("");
+  };
+
+  const saveEditingHeader = () => {
+    if (editingKey && editingValue) {
+      setHeaders((prev) => {
+        const newHeaders = { ...prev };
+        if (editingHeader !== editingKey) {
+          delete newHeaders[editingHeader!];
+        }
+        newHeaders[editingKey] = editingValue;
+        return newHeaders;
+      });
+    }
+    cancelEditingHeader();
   };
 
   const addQuickHeader = (type: "api-key" | "bearer" | "basic") => {
@@ -69,6 +96,14 @@ export function useHeaderManagement(props?: UseHeaderManagementProps) {
     setNewHeaderValue,
     addHeader,
     removeHeader,
+    startEditingHeader,
+    cancelEditingHeader,
+    saveEditingHeader,
+    editingHeader,
+    editingKey,
+    setEditingKey,
+    editingValue,
+    setEditingValue,
     addQuickHeader,
     headerValueInputRef,
   };
