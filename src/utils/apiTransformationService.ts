@@ -50,7 +50,7 @@ function detectApiIdentifier(apiUrl: string): string {
  * Transform raw API data to common financial schema
  */
 export async function transformApiData(
-  rawData: any,
+  rawData: unknown,
   apiUrl: string
 ): Promise<TransformedAPIResponse> {
   try {

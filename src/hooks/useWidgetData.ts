@@ -271,7 +271,7 @@ const fetchWidgetData = async (
                 });
                 console.log(`🔽 [Fetch Widget] Filtered table rows to selected fields:`, {
                   originalFieldCount: Object.keys(tableData.rows[0] || {}).length,
-                  filteredFieldCount: Object.keys((data as any[])[0] || {}).length
+                  filteredFieldCount: Object.keys((data as unknown[])[0] || {}).length
                 });
               } else {
                 data = tableData.rows;

@@ -14,7 +14,7 @@ import {
 import { Widget } from "../../types/widget";
 import { useWidgetData } from "../../hooks/useWidgetData";
 import { type ApiError } from "../../utils/errorHandler";
-import { mapFieldPath, getValueFromPath } from "../../utils/apiAdapters";
+import { mapFieldPath } from "../../utils/apiAdapters";
 import type { ColumnDefinition } from "../../utils/commonFinancialSchema";
 import { useStore } from "../../store/useStore";
 
@@ -130,19 +130,6 @@ export default function WidgetTable({
     return String(value);
   };
 
-  useEffect(() => {
-    // Debug logging to trace data flow
-    console.log('=== WidgetTable Debug ===');
-    console.log('1. Widget config:', widget);
-    console.log('2. Query result:', queryResult);
-    console.log('3. widgetData:', widgetData);
-    console.log('4. data (rows):', data);
-    console.log('5. columns:', columns);
-    console.log('6. useTransformedData:', useTransformedData);
-    console.log('7. tableData:', getTableData());
-    console.log('========================');
-  }, [widget, queryResult, widgetData, data, columns, useTransformedData]);
-
   // Convert data to array format for table display
   const getTableData = () => {
     if (!data) return [];
@@ -161,6 +148,19 @@ export default function WidgetTable({
     return [];
   };
   const tableData = getTableData();
+
+  useEffect(() => {
+    // Debug logging to trace data flow
+    console.log('=== WidgetTable Debug ===');
+    console.log('1. Widget config:', widget);
+    console.log('2. Query result:', queryResult);
+    console.log('3. widgetData:', widgetData);
+    console.log('4. data (rows):', data);
+    console.log('5. columns:', columns);
+    console.log('6. useTransformedData:', useTransformedData);
+    console.log('7. tableData:', tableData);
+    console.log('========================');
+  }, [widget, queryResult, widgetData, data, columns, useTransformedData, tableData]);
 
   // Analyze columns to determine types and get unique values/ranges
   useEffect(() => {
@@ -223,6 +223,7 @@ export default function WidgetTable({
       }
     });
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNumericRanges(newNumericRanges);
     setDateRanges(newDateRanges);
     setStringSelections(newStringSelections);
@@ -339,6 +340,7 @@ export default function WidgetTable({
 
   // Reset page when filters change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
   }, [searchTerm, columnFilters]);
 
@@ -1029,7 +1031,7 @@ export default function WidgetTable({
             {searchTerm && (
               <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs">
                 <Search className="w-3 h-3" />
-                <span>Search: "{searchTerm}"</span>
+                <span>Search: &quot;{searchTerm}&quot;</span>
                 <button
                   onClick={() => setSearchTerm("")}
                   className="hover:text-blue-900 dark:hover:text-blue-100"
@@ -1038,7 +1040,7 @@ export default function WidgetTable({
                 </button>
               </div>
             )}
-            {Object.entries(dateRanges).filter(([_, range]) => 
+            {Object.entries(dateRanges).filter(([, range]) => 
               range.currentMin !== range.min || range.currentMax !== range.max
             ).map(([column, range]) => {
               const displayName = useTransformedData && columns
@@ -1061,7 +1063,7 @@ export default function WidgetTable({
                 </div>
               );
             })}
-            {Object.entries(numericRanges).filter(([_, range]) => 
+            {Object.entries(numericRanges).filter(([, range]) => 
               range.currentMin !== range.min || range.currentMax !== range.max
             ).map(([column, range]) => {
               const displayName = useTransformedData && columns
@@ -1084,7 +1086,7 @@ export default function WidgetTable({
                 </div>
               );
             })}
-            {Object.entries(columnFilters).filter(([_, value]) => value).map(([column, value]) => {
+            {Object.entries(columnFilters).filter(([, value]) => value).map(([column, value]) => {
               const displayName = useTransformedData && columns
                 ? columns.find(col => col.key === column)?.label || column
                 : column.split('.').pop()?.replace(/_/g, ' ') || column;

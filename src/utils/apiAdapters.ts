@@ -405,8 +405,6 @@ function autoDetectTableData(data: unknown, pathHint?: string): TableDataRow[] {
     // Finnhub quote to table conversion (single object)
     if (dataObj.c && dataObj.h && dataObj.l && dataObj.o && dataObj.t && 
         typeof dataObj.c === 'number' && typeof dataObj.t === 'number') {
-      const timestamp = (dataObj.t as number) * 1000;
-      const date = new Date(timestamp);
       return [{
         c: dataObj.c as number,
         d: dataObj.d as number,

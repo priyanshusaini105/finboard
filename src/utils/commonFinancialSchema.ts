@@ -369,7 +369,7 @@ export interface FinancialDataset {
   columns: ColumnDefinition[];
   
   // Rows data (for tables)
-  rows: Record<string, any>[];
+  rows: Record<string, unknown>[];
   
   // Series data (for charts)
   series?: SeriesData[];
@@ -380,7 +380,7 @@ export interface FinancialDataset {
   generatedAt?: string; // ISO 8601 timestamp
   
   // Filters applied
-  filters?: Record<string, any>;
+  filters?: Record<string, unknown>;
 }
 
 export interface ColumnDefinition {
@@ -439,7 +439,7 @@ export interface TransformationMetadata {
 /**
  * Standard response wrapper for all transformed data
  */
-export interface FinancialDataResponse<T = any> {
+export interface FinancialDataResponse<T = unknown> {
   // Success indicator
   success: boolean;
   
@@ -453,7 +453,7 @@ export interface FinancialDataResponse<T = any> {
   error?: {
     code: string;
     message: string;
-    details?: any;
+    details?: unknown;
   };
   
   // Response timing

@@ -5,19 +5,11 @@
  * using the generated mapping template.
  */
 
-import { DataSchema, FieldSchema } from './schemaGenerator';
+import { DataSchema } from './schemaGenerator';
 import { SchemaMapper } from './schemaMapper';
 import {
-  EntityInfo,
-  EntityType,
-  PricePoint,
-  Quote,
-  TimeSeries,
-  TrendingItem,
   FinancialDataset,
   ColumnDefinition,
-  ChangeDirection,
-  TimeframeType,
   TransformationMetadata,
   FinancialDataResponse,
 } from './commonFinancialSchema';
@@ -36,7 +28,7 @@ export class DataTransformer {
   /**
    * Main transformation function
    */
-  public transform(rawData: any): FinancialDataResponse<FinancialDataset> {
+  public transform(rawData: unknown): FinancialDataResponse<FinancialDataset> {
     const startTime = Date.now();
     const structure = this.mapper.detectDataStructure();
     const mapping = this.mapper.generateMappingTemplate();
@@ -85,10 +77,11 @@ export class DataTransformer {
         metadata,
         responseTime: Date.now() - startTime,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
         success: false,
-        data: {} as any,
+        data: {} as FinancialDataset,
         metadata: {
           sourceApi: this.apiIdentifier,
           sourceEndpoint: 'N/A',
@@ -99,11 +92,11 @@ export class DataTransformer {
           recordsProcessed: 0,
           recordsSuccessful: 0,
           recordsFailed: 0,
-          errors: [error.message],
+          errors: [errorMessage],
         },
         error: {
           code: 'TRANSFORMATION_ERROR',
-          message: error.message,
+          message: errorMessage,
           details: error,
         },
         responseTime: Date.now() - startTime,
@@ -115,23 +108,23 @@ export class DataTransformer {
    * Transform time series data
    */
   private transformTimeSeries(
-    rawData: any,
-    structure: any,
-    mapping: any
+    rawData: unknown,
+    structure: { type: string; dataPath: string[]; isArray: boolean },
+    mapping: Record<string, unknown>
   ): FinancialDataset {
-    const rows: any[] = [];
+    const rows: Record<string, unknown>[] = [];
     let columns: ColumnDefinition[] = [];
 
     // Navigate to data
-    let data = rawData;
+    let data: unknown = rawData;
     for (const pathSegment of structure.dataPath) {
       if (pathSegment === '[DATE]') continue;
-      data = data[pathSegment];
+      data = (data as Record<string, unknown>)[pathSegment];
     }
 
     // Handle date-keyed map (Alpha Vantage style)
     if (structure.dataPath.includes('[DATE]')) {
-      for (const [date, values] of Object.entries(data)) {
+      for (const [date, values] of Object.entries(data as Record<string, unknown>)) {
         const row = this.extractFields(values, mapping);
         row.date = date;
         row.timestamp = date;
@@ -141,20 +134,23 @@ export class DataTransformer {
     // Handle array of objects
     else if (Array.isArray(data)) {
       // Check if this is Indian API format with datasets
-      const hasDatasets = data.some(item => item.values && Array.isArray(item.values));
+      const hasDatasets = data.some((item: unknown) => 
+        typeof item === 'object' && item !== null && 'values' in item && Array.isArray((item as Record<string, unknown>).values)
+      );
       
       if (hasDatasets) {
         // Indian API: Pivot data - combine all metrics for each date into single row
-        const dateMap = new Map<string, any>();
+        const dateMap = new Map<string, Record<string, unknown>>();
         
         for (const item of data) {
-          if (item.values && Array.isArray(item.values) && item.values.length > 0) {
-            const metricName = (item.metric || item.label || 'Value').toLowerCase();
+          const itemObj = item as Record<string, unknown>;
+          if (itemObj.values && Array.isArray(itemObj.values) && itemObj.values.length > 0) {
+            const metricName = String(itemObj.metric || itemObj.label || 'Value').toLowerCase();
             
-            for (const tuple of item.values) {
+            for (const tuple of item.values as unknown[]) {
               if (Array.isArray(tuple) && tuple.length >= 2) {
-                const date = tuple[0];
-                const value = parseFloat(tuple[1]);
+                const date = tuple[0] as string;
+                const value = parseFloat(tuple[1] as string);
                 
                 // Get or create row for this date
                 if (!dateMap.has(date)) {
@@ -165,7 +161,7 @@ export class DataTransformer {
                 }
                 
                 // Add metric value to the row
-                const row = dateMap.get(date);
+                const row = dateMap.get(date)!;
                 row[metricName] = value;
               }
             }
@@ -176,7 +172,7 @@ export class DataTransformer {
         rows.push(...Array.from(dateMap.values()));
       } else {
         // Regular array of objects with OHLCV
-        for (const item of data) {
+        for (const item of data as unknown[]) {
           const row = this.extractFields(item, mapping);
           rows.push(row);
         }
@@ -256,21 +252,21 @@ export class DataTransformer {
    * Transform trending/market movers data
    */
   private transformTrending(
-    rawData: any,
-    structure: any,
-    mapping: any
+    rawData: unknown,
+    structure: { type: string; dataPath: string[]; isArray: boolean },
+    mapping: Record<string, unknown>
   ): FinancialDataset {
-    const rows: any[] = [];
+    const rows: Record<string, unknown>[] = [];
     const columns = this.mapper.generateColumnDefinitions();
 
     // Navigate to data
-    let data = rawData;
+    let data: unknown = rawData;
     for (const pathSegment of structure.dataPath) {
-      data = data[pathSegment];
+      data = (data as Record<string, unknown>)[pathSegment];
     }
 
     if (Array.isArray(data)) {
-      for (const item of data) {
+      for (const item of data as unknown[]) {
         const row = this.extractFields(item, mapping);
         rows.push(row);
       }
@@ -292,9 +288,9 @@ export class DataTransformer {
    * Transform single quote data
    */
   private transformQuote(
-    rawData: any,
-    structure: any,
-    mapping: any
+    rawData: unknown,
+    structure: { type: string; dataPath: string[]; isArray: boolean },
+    mapping: Record<string, unknown>
   ): FinancialDataset {
     const row = this.extractFields(rawData, mapping);
     const columns = this.mapper.generateColumnDefinitions();
@@ -314,13 +310,14 @@ export class DataTransformer {
   /**
    * Extract fields from source object using mapping
    */
-  private extractFields(sourceObj: any, mapping: any): any {
-    const result: any = {};
+  private extractFields(sourceObj: unknown, mapping: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
 
+    const mappingObj = mapping as { entityMapping?: Record<string, string>; priceMapping?: Record<string, string>; quoteMapping?: Record<string, string> };
     const allMappings = {
-      ...mapping.entityMapping,
-      ...mapping.priceMapping,
-      ...(mapping.quoteMapping || {}),
+      ...(mappingObj.entityMapping || {}),
+      ...(mappingObj.priceMapping || {}),
+      ...(mappingObj.quoteMapping || {}),
     };
 
     for (const [targetField, sourcePath] of Object.entries(allMappings)) {
@@ -328,11 +325,11 @@ export class DataTransformer {
       
       // If value not found, try fuzzy matching for Alpha Vantage style fields
       // e.g., "open" should match "1. open", "2. high" etc.
-      if ((value === undefined || value === null) && typeof sourcePath === 'string') {
+      if ((value === undefined || value === null) && typeof sourcePath === 'string' && typeof sourceObj === 'object' && sourceObj !== null) {
         const targetName = sourcePath.split('.').pop()?.toLowerCase() || '';
         
         // Search for field with matching suffix (case-insensitive)
-        for (const [key, val] of Object.entries(sourceObj)) {
+        for (const [key, val] of Object.entries(sourceObj as Record<string, unknown>)) {
           const keyLower = key.toLowerCase();
           // Match if the key ends with the target field name
           // e.g., "1. open" matches "open", "4. close" matches "close"
@@ -359,28 +356,19 @@ export class DataTransformer {
   /**
    * Get nested value from object using dot notation
    */
-  private getNestedValue(obj: any, path: string): any {
+  private getNestedValue(obj: unknown, path: string): unknown {
     if (!path) return undefined;
     
     const parts = path.split('.');
-    let current = obj;
+    let current: unknown = obj;
 
     for (const part of parts) {
-      if (current === undefined || current === null) {
+      if (current === undefined || current === null || typeof current !== 'object') {
         return undefined;
       }
-      current = current[part];
+      current = (current as Record<string, unknown>)[part];
     }
 
     return current;
-  }
-
-  /**
-   * Infer change direction from change value
-   */
-  private inferChangeDirection(change: number): ChangeDirection {
-    if (change > 0) return ChangeDirection.UP;
-    if (change < 0) return ChangeDirection.DOWN;
-    return ChangeDirection.UNCHANGED;
   }
 }

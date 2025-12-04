@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, ChevronRight, ChevronLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { WidgetConfig, APIField, Widget } from "../../types/widget";
-import { loadTransformedData } from "../../utils/transformedDataLoader";
+import { WidgetConfig, Widget } from "../../types/widget";
 import { transformApiData, shouldTransformApi } from "../../utils/apiTransformationService";
 import type { ColumnDefinition } from "../../utils/commonFinancialSchema";
 import { useApiTesting } from "../../hooks/useApiTesting";
@@ -419,7 +418,7 @@ export default function AddWidgetModal({
                           Available Fields ({apiFields.length})
                         </h4>
                         <div className="grid grid-cols-2 gap-2">
-                          {apiFields.slice(0, 10).map((field, index) => (
+                          {apiFields.slice(0, 10).map((field) => (
                             <div
                               key={field.key}
                               className="text-xs bg-white dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-600"

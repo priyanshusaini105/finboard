@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   Line,
   XAxis,
@@ -15,7 +15,6 @@ import {
   Area,
   Scatter,
   ScatterChart,
-  ZAxis,
 } from "recharts";
 import { RefreshCw, Settings, X, TrendingUp, TrendingDown, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -102,12 +101,12 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 };
 
 // Candlestick shape component
-const Candlestick = (props: any) => {
-  const { x, y, width, height, payload } = props;
+const Candlestick = (props: unknown) => {
+  const { x, y, width, height, payload } = props as { x: number; y: number; width: number; height: number; payload: Record<string, number> };
   
   if (!payload || payload.open === undefined || payload.close === undefined || 
       payload.high === undefined || payload.low === undefined) {
-    return null;
+    return <g />;
   }
 
   const { open, close, high, low } = payload;
@@ -154,12 +153,12 @@ const Candlestick = (props: any) => {
 };
 
 // OHLC bar component
-const OHLCBar = (props: any) => {
-  const { x, y, width, height, payload } = props;
+const OHLCBar = (props: unknown) => {
+  const { x, y, width, height, payload } = props as { x: number; y: number; width: number; height: number; payload: Record<string, number> };
   
   if (!payload || payload.open === undefined || payload.close === undefined || 
       payload.high === undefined || payload.low === undefined) {
-    return null;
+    return <g />;
   }
 
   const { open, close, high, low } = payload;
@@ -358,17 +357,21 @@ export default function WidgetChart({
     return options;
   }, [availableFields]);
 
-  // Auto-select best chart type based on available data
-  useMemo(() => {
-    if (chartOptions.length > 0) {
+  // Track if chart type has been manually selected by user
+  const hasUserSelectedChart = useRef(false);
+
+  // Auto-select best chart type based on available data (only on initial mount)
+  useEffect(() => {
+    if (chartOptions.length > 0 && !hasUserSelectedChart.current) {
       const hasOHLC = availableFields.includes('open');
       if (hasOHLC && chartOptions.find(opt => opt.id === 'candlestick')) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedChartType('candlestick');
       } else if (!selectedChartType || !chartOptions.find(opt => opt.id === selectedChartType)) {
         setSelectedChartType(chartOptions[0].id);
       }
     }
-  }, [chartOptions, availableFields]);
+  }, [chartOptions, availableFields, selectedChartType]);
 
   // Calculate price change
   const priceChange = useMemo(() => {
@@ -439,7 +442,7 @@ export default function WidgetChart({
               <Bar
                 dataKey="high"
                 stackId="candle"
-                shape={<Candlestick />}
+                shape={Candlestick}
                 isAnimationActive={false}
               />
             </ComposedChart>
@@ -463,7 +466,7 @@ export default function WidgetChart({
               <Bar
                 dataKey="high"
                 stackId="ohlc"
-                shape={<OHLCBar />}
+                shape={OHLCBar}
                 isAnimationActive={false}
               />
             </ComposedChart>
@@ -707,6 +710,7 @@ export default function WidgetChart({
                       <button
                         key={option.id}
                         onClick={() => {
+                          hasUserSelectedChart.current = true;
                           setSelectedChartType(option.id);
                           setShowChartMenu(false);
                         }}
@@ -733,6 +737,7 @@ export default function WidgetChart({
                       <button
                         key={option.id}
                         onClick={() => {
+                          hasUserSelectedChart.current = true;
                           setSelectedChartType(option.id);
                           setShowChartMenu(false);
                         }}
@@ -759,6 +764,7 @@ export default function WidgetChart({
                       <button
                         key={option.id}
                         onClick={() => {
+                          hasUserSelectedChart.current = true;
                           setSelectedChartType(option.id);
                           setShowChartMenu(false);
                         }}
