@@ -4,6 +4,8 @@
 
 ## 🎬 Live Demo
 
+<img src="./public/thumbnail.png"/>
+
 <div align="center">
   <video width="80%" poster="./public/thumbnail.png" controls style="border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
     <source src="https://res.cloudinary.com/dna0hel5p/video/upload/v1764887494/finboard_qumd0k.mp4" type="video/mp4">
