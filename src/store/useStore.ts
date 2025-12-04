@@ -1,11 +1,20 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { Widget, WidgetConfig, WidgetType } from "@/src/types";
+import { ChartDataPoint } from "@/src/utils";
 
 interface DashboardConfig {
   theme?: "dark" | "light";
   layoutMode?: "grid" | "list";
   refreshInterval?: number;
+}
+
+export interface RealtimeWidgetState {
+  isRealtimeEnabled: boolean;
+  isConnected: boolean;
+  lastUpdateTime: number | null;
+  realtimeData: ChartDataPoint[];
+  provider: string;
 }
 
 interface DashboardState {
@@ -19,6 +28,9 @@ interface DashboardState {
   
   // Widgets state
   widgets: Widget[];
+  
+  // Realtime state per widget
+  realtimeStates: Record<string, RealtimeWidgetState>;
   
   // Dashboard actions
   openAddModal: () => void;
@@ -43,6 +55,13 @@ interface DashboardState {
   
   // Template actions
   loadDashboardFromTemplate: (config: DashboardConfig, widgetsData: Widget[]) => void;
+
+  // Realtime actions
+  initRealtimeWidget: (widgetId: string, provider: string) => void;
+  setRealtimeConnected: (widgetId: string, connected: boolean) => void;
+  updateRealtimeData: (widgetId: string, data: ChartDataPoint[]) => void;
+  setRealtimeEnabled: (widgetId: string, enabled: boolean) => void;
+  clearRealtimeState: (widgetId: string) => void;
 }
 
 const DASHBOARD_CONFIG_KEY = "finboard_dashboard_config";
@@ -89,6 +108,7 @@ export const useStore = create<DashboardState>()(
       layoutMode: (savedConfig.layoutMode as "grid" | "list") || "grid",
       refreshInterval: savedConfig.refreshInterval || 30,
       widgets: savedWidgets,
+      realtimeStates: {},
 
       // Dashboard actions
       openAddModal: () =>
@@ -154,7 +174,7 @@ export const useStore = create<DashboardState>()(
                 : config.displayMode === "table"
                 ? WidgetType.TABLE
                 : WidgetType.CHART,
-            apiUrl: config.apiUrl,
+            apiUrl: config.apiUrl, // Only set if not using WebSocket
             refreshInterval: config.refreshInterval,
             selectedFields: config.selectedFields,
             headers: config.headers,
@@ -163,6 +183,11 @@ export const useStore = create<DashboardState>()(
             w: defaultWidth, // Default width in columns
             height: defaultHeight, // Default height in grid units
             isLoading: true,
+            enableRealtime: config.enableRealtime || false,
+            realtimeProvider: config.realtimeProvider,
+            realtimeSymbol: config.realtimeSymbol,
+            websocketUrl: config.websocketUrl,
+            websocketSymbols: config.websocketSymbols,
           };
           return { widgets: [...state.widgets, newWidget] };
         }),
@@ -185,6 +210,11 @@ export const useStore = create<DashboardState>()(
                   selectedFields: config.selectedFields,
                   headers: config.headers,
                   error: undefined,
+                  enableRealtime: config.enableRealtime || false,
+                  realtimeProvider: config.realtimeProvider,
+                  realtimeSymbol: config.realtimeSymbol,
+                  websocketUrl: config.websocketUrl,
+                  websocketSymbols: config.websocketSymbols,
                 }
               : widget
           ),
@@ -200,6 +230,9 @@ export const useStore = create<DashboardState>()(
       deleteWidget: (id: string) =>
         set((state) => ({
           widgets: state.widgets.filter((widget) => widget.id !== id),
+          realtimeStates: Object.fromEntries(
+            Object.entries(state.realtimeStates).filter(([key]) => key !== id)
+          ),
         })),
 
       reorderWidgets: (oldIndex: number, newIndex: number) =>
@@ -233,6 +266,63 @@ export const useStore = create<DashboardState>()(
             ...widget,
             isLoading: true,
           })),
+        }),
+
+      // Realtime actions
+      initRealtimeWidget: (widgetId: string, provider: string) =>
+        set((state) => ({
+          realtimeStates: {
+            ...state.realtimeStates,
+            [widgetId]: {
+              isRealtimeEnabled: true,
+              isConnected: false,
+              lastUpdateTime: null,
+              realtimeData: [],
+              provider,
+            },
+          },
+        })),
+
+      setRealtimeConnected: (widgetId: string, connected: boolean) =>
+        set((state) => ({
+          realtimeStates: {
+            ...state.realtimeStates,
+            [widgetId]: {
+              ...state.realtimeStates[widgetId],
+              isConnected: connected,
+              lastUpdateTime: connected ? Date.now() : state.realtimeStates[widgetId]?.lastUpdateTime || null,
+            },
+          },
+        })),
+
+      updateRealtimeData: (widgetId: string, data: ChartDataPoint[]) =>
+        set((state) => ({
+          realtimeStates: {
+            ...state.realtimeStates,
+            [widgetId]: {
+              ...state.realtimeStates[widgetId],
+              realtimeData: data,
+              lastUpdateTime: Date.now(),
+            },
+          },
+        })),
+
+      setRealtimeEnabled: (widgetId: string, enabled: boolean) =>
+        set((state) => ({
+          realtimeStates: {
+            ...state.realtimeStates,
+            [widgetId]: {
+              ...state.realtimeStates[widgetId],
+              isRealtimeEnabled: enabled,
+            },
+          },
+        })),
+
+      clearRealtimeState: (widgetId: string) =>
+        set((state) => {
+          const newRealtimeStates = { ...state.realtimeStates };
+          delete newRealtimeStates[widgetId];
+          return { realtimeStates: newRealtimeStates };
         }),
     }),
     {

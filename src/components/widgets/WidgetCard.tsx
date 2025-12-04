@@ -16,8 +16,6 @@ interface WidgetCardProps {
 
 export default function WidgetCard({
   widget,
-  onConfigure,
-  onDelete,
   hideHeader = false,
 }: WidgetCardProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -25,7 +23,7 @@ export default function WidgetCard({
   const { updateWidgetTitle } = useStore();
 
   // Use TanStack Query for data fetching with caching
-  const { data, isLoading, error, refetch, isFetching } = useWidgetData(widget);
+  const { data, isLoading, error, isFetching } = useWidgetData(widget);
 
   const handleTitleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();

@@ -21,22 +21,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Widget } from "@/src/types";
 import { getSymbolFromUrl } from "@/src/utils";
 import { useWidgetData } from "@/src/hooks";
+import { useRealtimeData } from "@/src/hooks";
+import { type ChartDataPoint } from "@/src/utils";
 import { ChartSkeleton } from "@/src/components/ui";
 import { useStore } from "@/src/store";
-
-// Chart data types
-interface ChartDataPoint {
-  date: string;
-  open?: number;
-  high?: number;
-  low?: number;
-  close?: number;
-  price?: number;
-  volume?: number;
-  dma50?: number | null;
-  dma200?: number | null;
-  [key: string]: unknown;
-}
+import { WidgetRealtimeIndicator } from "@/src/components";
 
 interface TooltipPayload {
   dataKey: string;
@@ -216,10 +205,8 @@ interface WidgetChartProps {
   hideHeader?: boolean;
 }
 
-export default function WidgetChart({
+function WidgetChartComponent({
   widget,
-  onConfigure,
-  onDelete,
   hideHeader = false,
 }: WidgetChartProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -229,7 +216,7 @@ export default function WidgetChart({
   const { updateWidgetTitle } = useStore();
 
   // Use TanStack Query for data fetching with caching
-  const { data, isLoading, error, refetch, isFetching } = useWidgetData(widget);
+  const { data, isLoading, error, isFetching } = useWidgetData(widget);
 
   // Transform API data for chart display using universal adapter
   const chartData = useMemo(() => {
@@ -238,13 +225,18 @@ export default function WidgetChart({
     try {
       // Data is already transformed by the Dashboard using transformData()
       // So we can use it directly
-      return Array.isArray(data.data) ? (data.data as ChartDataPoint[]) : [];
+      const dataArray = Array.isArray(data.data) ? (data.data as ChartDataPoint[]) : [];
+      return dataArray.map(point => ({
+        ...point,
+        fullDate: point.fullDate || point.date // Ensure fullDate is set
+      }));
     } catch (error) {
       console.error("Error using chart data:", error);
       return [];
     }
   }, [data?.data]);
 
+<<<<<<< HEAD
   // Detect available fields in the data
   const availableFields = useMemo(() => {
     if (chartData.length === 0) return [];
@@ -381,14 +373,37 @@ export default function WidgetChart({
 
     const latestPrice = chartData[chartData.length - 1]?.close || chartData[chartData.length - 1]?.price || 0;
     const previousPrice = chartData[chartData.length - 2]?.close || chartData[chartData.length - 2]?.price || 0;
+=======
+  // Setup real-time data connection
+  const realtimeResult = useRealtimeData(widget, chartData);
+
+  // Merge polling data with real-time data (prefer real-time if connected)
+  const displayData = useMemo(() => {
+    if (realtimeResult.isConnected && realtimeResult.realtimeData.length > 0) {
+      return realtimeResult.realtimeData;
+    }
+    return chartData;
+  }, [chartData, realtimeResult.isConnected, realtimeResult.realtimeData]);
+
+  // Calculate price change from display data
+  const priceChange = useMemo(() => {
+    if (displayData.length < 2) return { change: 0, percentage: 0 };
+
+    const latestPrice = displayData[displayData.length - 1]?.price || 0;
+    const previousPrice = displayData[displayData.length - 2]?.price || 0;
+>>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
     const change = latestPrice - previousPrice;
     const percentage = previousPrice ? (change / previousPrice) * 100 : 0;
 
     return { change, percentage };
-  }, [chartData]);
+  }, [displayData]);
 
   const isPositive = priceChange.change >= 0;
+<<<<<<< HEAD
   const currentPrice = chartData[chartData.length - 1]?.close || chartData[chartData.length - 1]?.price || 0;
+=======
+  const currentPrice = displayData[displayData.length - 1]?.price || 0;
+>>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
 
   // Extract stock symbol from API URL
   const stockSymbol = useMemo(() => {
@@ -398,20 +413,20 @@ export default function WidgetChart({
     return "STOCK";
   }, [widget.apiUrl]);
 
-  const handleTitleDoubleClick = (e: React.MouseEvent) => {
+  const handleTitleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setIsEditingTitle(true);
     setEditingTitle(widget.title);
-  };
+  }, [widget.title]);
 
-  const handleTitleSave = () => {
+  const handleTitleSave = useCallback(() => {
     if (editingTitle.trim() && editingTitle !== widget.title) {
       updateWidgetTitle(widget.id, editingTitle.trim());
     }
     setIsEditingTitle(false);
-  };
+  }, [editingTitle, widget.id, widget.title, updateWidgetTitle]);
 
-  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+  const handleTitleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.stopPropagation();
       handleTitleSave();
@@ -420,7 +435,7 @@ export default function WidgetChart({
       setEditingTitle(widget.title);
       setIsEditingTitle(false);
     }
-  };
+  }, [widget.title, handleTitleSave]);
 
   // Render chart based on selected type
   const renderChart = () => {
@@ -657,6 +672,16 @@ export default function WidgetChart({
               <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded font-mono">
                 {stockSymbol}
               </span>
+              {/* Real-time indicator */}
+              {widget.enableRealtime && (
+                <WidgetRealtimeIndicator
+                  isConnected={realtimeResult.isConnected}
+                  isError={realtimeResult.isError}
+                  provider={widget.realtimeProvider || 'finnhub'}
+                  lastUpdateTime={realtimeResult.lastUpdateTime}
+                  compact={false}
+                />
+              )}
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-lg font-bold text-slate-900 dark:text-white">
@@ -842,7 +867,7 @@ export default function WidgetChart({
             >
               <ChartSkeleton />
             </motion.div>
-          ) : chartData.length > 0 ? (
+          ) : displayData.length > 0 ? (
             <motion.div
               key="chart"
               className={selectedChartType.includes('volume') ? 'space-y-0' : 'h-80'}
@@ -852,7 +877,122 @@ export default function WidgetChart({
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
             >
+<<<<<<< HEAD
               {renderChart()}
+=======
+              {/* Price Chart */}
+              <motion.div
+                className="h-64"
+                layout
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={displayData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis
+                      dataKey="date"
+                      stroke="#9CA3AF"
+                      fontSize={12}
+                      tickMargin={5}
+                    />
+                    <YAxis
+                      stroke="#9CA3AF"
+                      fontSize={12}
+                      domain={["dataMin - 10", "dataMax + 10"]}
+                      tickFormatter={(value) => `₹${value}`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+
+                    {/* Price Line */}
+                    <Line
+                      type="monotone"
+                      dataKey="price"
+                      stroke="#3B82F6"
+                      strokeWidth={2}
+                      dot={false}
+                      name="Price"
+                    />
+
+                    {/* Moving Averages - only show if data is available */}
+                    {chartData.some(
+                      (d: ChartDataPoint) => d.dma50 !== null && d.dma50 !== undefined
+                    ) && (
+                      <Line
+                        type="monotone"
+                        dataKey="dma50"
+                        stroke="#F59E0B"
+                        strokeWidth={1}
+                        dot={false}
+                        name="50 DMA"
+                        strokeDasharray="5 5"
+                      />
+                    )}
+                    {chartData.some(
+                      (d: ChartDataPoint) => d.dma200 !== null && d.dma200 !== undefined
+                    ) && (
+                      <Line
+                        type="monotone"
+                        dataKey="dma200"
+                        stroke="#EF4444"
+                        strokeWidth={1}
+                        dot={false}
+                        name="200 DMA"
+                        strokeDasharray="5 5"
+                      />
+                    )}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </motion.div>
+
+              {/* Volume Chart - only show if volume data is available */}
+              <AnimatePresence>
+                {chartData.some((d: ChartDataPoint) => d.volume !== undefined) && (
+                  <motion.div
+                    className="h-32"
+                    layout
+                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                    animate={{ opacity: 1, height: 128, marginTop: 16 }}
+                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    <h4 className="text-sm font-medium text-slate-300 mb-2">
+                      Volume
+                    </h4>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis
+                          dataKey="date"
+                          stroke="#9CA3AF"
+                          fontSize={10}
+                          tickMargin={5}
+                        />
+                        <YAxis
+                          stroke="#9CA3AF"
+                          fontSize={10}
+                          tickFormatter={(value) =>
+                            `${(value / 1000000).toFixed(1)}M`
+                          }
+                        />
+                        <Tooltip
+                          formatter={(value: number) => [
+                            `${(value / 1000000).toFixed(2)}M`,
+                            "Volume",
+                          ]}
+                          labelStyle={{ color: "#9CA3AF" }}
+                          contentStyle={{
+                            backgroundColor: "#1F2937",
+                            border: "1px solid #374151",
+                          }}
+                        />
+                        <Bar dataKey="volume" fill="#6366F1" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+>>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
             </motion.div>
           ) : (
             <motion.div
@@ -871,3 +1011,16 @@ export default function WidgetChart({
     </motion.div>
   );
 }
+
+const WidgetChart = React.memo(WidgetChartComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.widget.id === nextProps.widget.id &&
+    prevProps.widget.title === nextProps.widget.title &&
+    prevProps.widget.enableRealtime === nextProps.widget.enableRealtime &&
+    prevProps.hideHeader === nextProps.hideHeader
+  );
+});
+
+WidgetChart.displayName = 'WidgetChart';
+
+export default WidgetChart;

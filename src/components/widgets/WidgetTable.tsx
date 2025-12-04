@@ -4,7 +4,6 @@ import { useState, JSX, useEffect } from "react";
 import {
   RefreshCw,
   Settings,
-  X,
   Search,
   ChevronLeft,
   ChevronRight,
@@ -26,7 +25,6 @@ interface WidgetTableProps {
 export default function WidgetTable({
   widget,
   onConfigure,
-  onDelete,
   hideHeader = false,
 }: WidgetTableProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -130,6 +128,21 @@ export default function WidgetTable({
     return String(value);
   };
 
+<<<<<<< HEAD
+=======
+  useEffect(() => {
+    // Debug logging to trace data flow
+    console.log('=== WidgetTable Debug ===');
+    console.log('1. Widget config:', widget);
+    console.log('2. Query result:', queryResult);
+    console.log('3. widgetData:', widgetData);
+    console.log('4. data (rows):', data);
+    console.log('5. columns:', columns);
+    console.log('6. useTransformedData:', useTransformedData);
+    console.log('========================');
+  }, [widget, queryResult, widgetData, data, columns, useTransformedData]);
+
+>>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
   // Convert data to array format for table display
   const getTableData = () => {
     if (!data) return [];
@@ -1033,7 +1046,11 @@ export default function WidgetTable({
             {searchTerm && (
               <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs">
                 <Search className="w-3 h-3" />
+<<<<<<< HEAD
                 <span>Search: &quot;{searchTerm}&quot;</span>
+=======
+                <span>Search: &ldquo;{searchTerm}&rdquo;</span>
+>>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
                 <button
                   onClick={() => setSearchTerm("")}
                   className="hover:text-blue-900 dark:hover:text-blue-100"
