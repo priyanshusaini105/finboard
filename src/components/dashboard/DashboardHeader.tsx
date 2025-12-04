@@ -101,15 +101,15 @@ export default function DashboardHeader({
   };
 
   return (
-    <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-6 py-4 theme-transition">
+    <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 theme-transition shadow-sm">
       {/* Status messages */}
       {importError && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/25 border border-red-200 dark:border-red-700 rounded-lg text-red-700 dark:text-red-300 text-sm">
           {importError}
         </div>
       )}
       {importSuccess && (
-        <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-400 text-sm">
+        <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/25 border border-green-200 dark:border-green-700 rounded-lg text-green-700 dark:text-green-300 text-sm">
           {importSuccess}
         </div>
       )}

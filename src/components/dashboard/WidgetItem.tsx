@@ -3,7 +3,8 @@
 import React from "react";
 import { Widget, WidgetType } from "@/src/types";
 import { WidgetCard, WidgetTable, WidgetChart } from "@/src/components/widgets";
-import { GripVertical, Settings, Trash2, Maximize, RefreshCw } from "lucide-react";
+import { ErrorBoundary } from "@/src/components/ui";
+import { GripVertical, Settings, Trash2, Maximize, RefreshCw, AlertCircle } from "lucide-react";
 
 interface WidgetItemProps {
   widget: Widget;
@@ -12,6 +13,38 @@ interface WidgetItemProps {
   onConfigure: (widgetId: string) => void;
   onDelete: (widgetId: string) => void;
   onExpand: (widget: Widget) => void;
+}
+
+/**
+ * WidgetErrorFallback Component
+ * Displays error UI when a widget fails to render
+ */
+function WidgetErrorFallback({
+  widget,
+  onDelete,
+}: {
+  widget: Widget;
+  onDelete: (widgetId: string) => void;
+}): React.ReactElement {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 p-4 h-full bg-red-50 dark:bg-red-900/20">
+      <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+      <div className="text-center">
+        <p className="text-sm font-semibold text-red-900 dark:text-red-200">
+          {widget.title} Error
+        </p>
+        <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+          Failed to load widget
+        </p>
+      </div>
+      <button
+        onClick={() => onDelete(widget.id)}
+        className="text-xs px-2 py-1 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 rounded transition-colors"
+      >
+        Remove Widget
+      </button>
+    </div>
+  );
 }
 
 export default function WidgetItem({
@@ -70,14 +103,14 @@ export default function WidgetItem({
   return (
     <div
       className={`widget-item-container h-full flex flex-col bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden transition-shadow ${
-        dragging ? "shadow-2xl ring-2 ring-emerald-400 opacity-90" : "hover:shadow-md"
+        dragging ? "shadow-xl ring-2 ring-emerald-400 opacity-90" : "hover:shadow-md"
       }`}
     >
       {/* Draggable Header */}
       <div
-        className={`widget-drag-handle flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 ${
+        className={`widget-drag-handle flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 ${
           editable ? "cursor-grab active:cursor-grabbing" : "cursor-default"
-        } ${dragging ? "bg-emerald-50 dark:bg-emerald-900/20" : ""}`}
+        } ${dragging ? "bg-emerald-50 dark:bg-emerald-900/15" : ""}`}
       >
         {/* Left: Drag Icon + Title */}
         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -87,7 +120,7 @@ export default function WidgetItem({
                 dragging ? "opacity-100" : "opacity-40 hover:opacity-100"
               }`}
             >
-              <GripVertical className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+              <GripVertical className="w-4 h-4 text-slate-500 dark:text-slate-500" />
             </div>
           )}
           <h3 className="font-semibold text-sm text-slate-900 dark:text-white truncate">
@@ -100,11 +133,11 @@ export default function WidgetItem({
           <div className="widget-drag-cancel flex items-center gap-2 shrink-0">
             <button
               onClick={handleRefresh}
-              className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+              className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700/60 transition-colors disabled:opacity-50"
               disabled={isRefreshing}
               title="Refresh Widget"
             >
-              <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-400 ${
+              <RefreshCw className={`w-4 h-4 text-slate-500 dark:text-slate-400 ${
                 isRefreshing ? "animate-spin" : ""
               }`} />
             </button>
@@ -113,20 +146,20 @@ export default function WidgetItem({
                 e.stopPropagation();
                 onExpand(widget);
               }}
-              className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700/60 transition-colors"
               title="Expand Widget"
             >
-              <Maximize className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+              <Maximize className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             </button>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onConfigure(widget.id);
               }}
-              className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700/60 transition-colors"
               title="Configure Widget"
             >
-              <Settings className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+              <Settings className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             </button>
             <button
               onClick={(e) => {
@@ -135,7 +168,7 @@ export default function WidgetItem({
                   onDelete(widget.id);
                 }
               }}
-              className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+              className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/25 transition-colors"
               title="Delete Widget"
             >
               <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
@@ -146,7 +179,15 @@ export default function WidgetItem({
 
       {/* Widget Body */}
       <div className="widget-body flex-1 overflow-auto">
-        {renderWidgetContent()}
+        <ErrorBoundary
+          fallback={<WidgetErrorFallback widget={widget} onDelete={onDelete} />}
+          onError={(error, info) => {
+            console.error(`Widget "${widget.title}" error:`, error, info);
+          }}
+          widgetId={widget.id}
+        >
+          {renderWidgetContent()}
+        </ErrorBoundary>
       </div>
 
       <style jsx>{`

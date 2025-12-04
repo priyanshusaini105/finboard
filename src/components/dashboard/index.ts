@@ -5,7 +5,6 @@ export { default as DashboardHeader } from './DashboardHeader';
 export { DisplaySettings } from './DisplaySettings';
 export { FieldSelector } from './FieldSelector';
 export { HeaderInput } from './HeaderInput';
-export { default as SortableWidget } from './SortableWidget';
 export { default as SortableWidgetContent } from './SortableWidgetContent';
 export { TemplatesModal } from './TemplatesModal';
 export { UrlParamsInput } from './UrlParamsInput';

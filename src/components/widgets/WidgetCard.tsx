@@ -137,7 +137,7 @@ export default function WidgetCard({
   };
 
   return (
-    <div className="bg-white h-full dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-none hover:shadow-lg dark:hover:shadow-lg transition-shadow duration-300 ">
+    <div className="bg-white h-full dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm dark:shadow-sm hover:shadow-md dark:hover:shadow-lg transition-shadow duration-300">
       {/* Widget Header */}
       {!hideHeader && (
       <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
