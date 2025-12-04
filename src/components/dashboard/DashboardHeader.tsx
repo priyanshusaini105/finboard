@@ -1,10 +1,11 @@
 "use client";
 
-import { Plus, BarChart3, Download, Upload, RotateCcw } from "lucide-react";
+import { Plus, BarChart3, Download, Upload, RotateCcw, Zap } from "lucide-react";
 import { useRef, useState } from "react";
 import ThemeToggle from "../ui/ThemeToggle";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useStore } from "../../store/useStore";
+import { TemplatesModal } from "./TemplatesModal";
 import {
   exportDashboardConfig,
   importDashboardConfig,
@@ -30,6 +31,7 @@ export default function DashboardHeader({
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const handleExport = () => {
     const state = useStore.getState();
@@ -137,6 +139,16 @@ export default function DashboardHeader({
             <span className="hidden xs:inline">Add Widget</span>
           </button>
 
+          {/* Templates Button */}
+          <button
+            onClick={() => setShowTemplates(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-2 md:px-4 py-2 rounded-lg flex items-center gap-1 md:gap-2 transition-colors text-sm md:text-base whitespace-nowrap"
+            title="Load pre-built dashboard templates"
+          >
+            <Zap className="w-4 h-4" />
+            <span className="hidden xs:inline">Templates</span>
+          </button>
+
           {/* Export Button */}
           <button
             onClick={handleExport}
@@ -179,6 +191,9 @@ export default function DashboardHeader({
           <ThemeToggle />
         </div>
       </div>
+
+      {/* Templates Modal */}
+      <TemplatesModal isOpen={showTemplates} onClose={() => setShowTemplates(false)} />
 
       {/* Reset Confirmation Modal */}
       {showResetConfirm && (

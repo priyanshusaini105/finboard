@@ -34,6 +34,9 @@ interface DashboardState {
   // Grid layout actions
   updateWidgetLayout: (widgets: Widget[]) => void;
   updateWidgetHeight: (id: string, height: number) => void;
+  
+  // Template actions
+  loadDashboardFromTemplate: (config: any, widgetsData: any[]) => void;
 }
 
 const DASHBOARD_CONFIG_KEY = "finboard_dashboard_config";
@@ -213,6 +216,18 @@ export const useStore = create<DashboardState>()(
             widget.id === id ? { ...widget, height } : widget
           ),
         })),
+
+      // Template actions
+      loadDashboardFromTemplate: (config: any, widgetsData: any[]) =>
+        set({
+          theme: (config.theme as "dark" | "light") || "dark",
+          layoutMode: (config.layoutMode as "grid" | "list") || "grid",
+          refreshInterval: config.refreshInterval || 30,
+          widgets: widgetsData.map((widget) => ({
+            ...widget,
+            isLoading: true,
+          })),
+        }),
     }),
     {
       name: "finboard-storage",

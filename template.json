@@ -1,0 +1,126 @@
+{
+  "version": "1.0",
+  "exportedAt": "2025-12-04T13:03:48.530Z",
+  "config": {
+    "theme": "dark",
+    "layoutMode": "grid",
+    "refreshInterval": 30
+  },
+  "widgets": [
+    {
+      "id": "xway4qggb",
+      "title": "Trending Stocks",
+      "type": "card",
+      "apiUrl": "https://stock.indianapi.in/trending",
+      "refreshInterval": 30,
+      "selectedFields": [
+        "symbol",
+        "name",
+        "time",
+        "date",
+        "adjustedClose",
+        "ric",
+        "tickerId",
+        "lotSize",
+        "open",
+        "low",
+        "close",
+        "volume",
+        "exchange"
+      ],
+      "headers": {
+        "X-Api-Key": "sk-live-iw6Irxl1OHjGK4Uyoo9jGe0rPeWEOZhSiFwt4J8b"
+      },
+      "x": 0,
+      "y": 0,
+      "w": 1,
+      "height": 16,
+      "isLoading": true
+    },
+    {
+      "id": "2bp5o0mp7",
+      "title": "RELIANCE Stock Chart",
+      "type": "chart",
+      "apiUrl": "https://stock.indianapi.in/historical_data?stock_name=RELIANCE&period=1m&filter=price",
+      "refreshInterval": 30,
+      "selectedFields": [
+        "date",
+        "timestamp",
+        "volume",
+        "dma200",
+        "dma50",
+        "price"
+      ],
+      "headers": {
+        "X-Api-Key": "sk-live-iw6Irxl1OHjGK4Uyoo9jGe0rPeWEOZhSiFwt4J8b"
+      },
+      "x": 2,
+      "y": 16,
+      "w": 2,
+      "height": 13,
+      "isLoading": true
+    },
+    {
+      "id": "ctp20pyf3",
+      "title": "IBM Stock Chart",
+      "type": "chart",
+      "apiUrl": "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=IBM&apikey=ZC4V0ZFG1A5581NL",
+      "refreshInterval": 30,
+      "selectedFields": [
+        "timestamp",
+        "date",
+        "volume",
+        "open",
+        "high"
+      ],
+      "x": 0,
+      "y": 16,
+      "w": 2,
+      "height": 13,
+      "isLoading": true
+    },
+    {
+      "id": "mgrkk8e5t",
+      "title": "AAPL Stock Chart",
+      "type": "card",
+      "apiUrl": "https://finnhub.io/api/v1/quote?symbol=AAPL&token=d4oiqghr01qtc1ovu2kgd4oiqghr01qtc1ovu2l0",
+      "refreshInterval": 30,
+      "selectedFields": [
+        "c",
+        "d",
+        "t",
+        "pc",
+        "o",
+        "h",
+        "dp",
+        "l"
+      ],
+      "x": 3,
+      "y": 0,
+      "w": 1,
+      "height": 16,
+      "isLoading": true
+    },
+    {
+      "id": "vf6ae9af2",
+      "title": "IBM Stock Chart",
+      "type": "chart",
+      "apiUrl": "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=IBM&apikey=demo",
+      "refreshInterval": 30,
+      "selectedFields": [
+        "timestamp",
+        "date",
+        "volume",
+        "open",
+        "high",
+        "low",
+        "close"
+      ],
+      "x": 1,
+      "y": 0,
+      "w": 2,
+      "height": 16,
+      "isLoading": true
+    }
+  ]
+}
