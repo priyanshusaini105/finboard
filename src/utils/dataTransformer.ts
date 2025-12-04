@@ -33,7 +33,7 @@ export class DataTransformer {
     const structure = this.mapper.detectDataStructure();
     const mapping = this.mapper.generateMappingTemplate();
 
-    let transformedData: Record<string, unknown>;
+    let transformedData: FinancialDataset;
     let recordsProcessed = 0;
     let recordsSuccessful = 0;
 
@@ -252,24 +252,15 @@ export class DataTransformer {
    * Transform trending/market movers data
    */
   private transformTrending(
-<<<<<<< HEAD
     rawData: unknown,
     structure: { type: string; dataPath: string[]; isArray: boolean },
     mapping: Record<string, unknown>
   ): FinancialDataset {
     const rows: Record<string, unknown>[] = [];
-=======
-    rawData: Record<string, unknown>,
-    structure: Record<string, unknown>,
-    mapping: Record<string, unknown>
-  ): Record<string, unknown> {
-    const rows: Array<Record<string, unknown>> = [];
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
     const columns = this.mapper.generateColumnDefinitions();
 
     // Navigate to data
     let data: unknown = rawData;
-<<<<<<< HEAD
     for (const pathSegment of structure.dataPath) {
       data = (data as Record<string, unknown>)[pathSegment];
     }
@@ -277,15 +268,6 @@ export class DataTransformer {
     if (Array.isArray(data)) {
       for (const item of data as unknown[]) {
         const row = this.extractFields(item, mapping);
-=======
-    for (const pathSegment of (structure.dataPath as string[])) {
-      data = (data as Record<string, unknown>)[pathSegment] as unknown;
-    }
-
-    if (Array.isArray(data)) {
-      for (const item of data) {
-        const row = this.extractFields(item as Record<string, unknown>, mapping as Record<string, unknown>);
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
         rows.push(row);
       }
     }
@@ -306,19 +288,11 @@ export class DataTransformer {
    * Transform single quote data
    */
   private transformQuote(
-<<<<<<< HEAD
     rawData: unknown,
     structure: { type: string; dataPath: string[]; isArray: boolean },
     mapping: Record<string, unknown>
   ): FinancialDataset {
     const row = this.extractFields(rawData, mapping);
-=======
-    rawData: Record<string, unknown>,
-    structure: Record<string, unknown>,
-    mapping: Record<string, unknown>
-  ): Record<string, unknown> {
-    const row = this.extractFields(rawData, mapping as Record<string, unknown>);
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
     const columns = this.mapper.generateColumnDefinitions();
 
     return {
@@ -336,11 +310,7 @@ export class DataTransformer {
   /**
    * Extract fields from source object using mapping
    */
-<<<<<<< HEAD
   private extractFields(sourceObj: unknown, mapping: Record<string, unknown>): Record<string, unknown> {
-=======
-  private extractFields(sourceObj: Record<string, unknown>, mapping: Record<string, unknown>): Record<string, unknown> {
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
     const result: Record<string, unknown> = {};
 
     const mappingObj = mapping as { entityMapping?: Record<string, string>; priceMapping?: Record<string, string>; quoteMapping?: Record<string, string> };
@@ -386,11 +356,7 @@ export class DataTransformer {
   /**
    * Get nested value from object using dot notation
    */
-<<<<<<< HEAD
   private getNestedValue(obj: unknown, path: string): unknown {
-=======
-  private getNestedValue(obj: Record<string, unknown>, path: string): unknown {
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
     if (!path) return undefined;
     
     const parts = path.split('.');
@@ -405,16 +371,4 @@ export class DataTransformer {
 
     return current;
   }
-<<<<<<< HEAD
-=======
-
-  /**
-   * Infer change direction from change value
-   */
-  private inferChangeDirection(change: number): string {
-    if (change > 0) return 'UP';
-    if (change < 0) return 'DOWN';
-    return 'UNCHANGED';
-  }
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
 }

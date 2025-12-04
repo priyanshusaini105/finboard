@@ -4,6 +4,7 @@
  */
 
 import type { FinancialDataset, ColumnDefinition } from './commonFinancialSchema';
+import type { ChartDataPoint } from './websocketAdapter';
 
 interface TransformedDataResponse {
   success: boolean;
@@ -153,17 +154,8 @@ export function getTableData(dataset: FinancialDataset): TableData {
 /**
  * Get chart-ready data structure
  */
-export interface ChartDataPoint {
-  date: string;
-  fullDate?: string;
-  price?: number;
-  open?: number;
-  high?: number;
-  low?: number;
-  close?: number;
-  volume?: number;
-  [key: string]: unknown;
-}
+// Re-export ChartDataPoint from websocketAdapter for consistency
+export type { ChartDataPoint } from './websocketAdapter';
 
 export function getChartData(dataset: FinancialDataset): ChartDataPoint[] {
   // For time series data
@@ -171,18 +163,17 @@ export function getChartData(dataset: FinancialDataset): ChartDataPoint[] {
     return dataset.rows.map((row) => {
       // Extract date field
       const dateField = dataset.columns.find(c => c.type === 'date' || c.type === 'datetime')?.key || 'date';
-      const date = row[dateField] as string;
+      const fullDate = (row[dateField] as string) || new Date().toISOString();
 
       return {
-        date: date ? new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
-        fullDate: date,
-        price: (row.price || row.close || row.adjustedClose) as number,
+        date: fullDate ? new Date(fullDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
+        fullDate: fullDate,
+        price: (row.price || row.close || row.adjustedClose) as number || 0,
         open: row.open as number,
         high: row.high as number,
         low: row.low as number,
         close: row.close as number,
         volume: row.volume as number,
-        ...row,
       };
     });
   }
@@ -190,8 +181,8 @@ export function getChartData(dataset: FinancialDataset): ChartDataPoint[] {
   // For other data types, return as-is
   return dataset.rows.map((row, index) => ({
     date: `Point ${index + 1}`,
-    price: (row.price || row.close || row.value) as number,
-    ...row,
+    fullDate: new Date().toISOString(),
+    price: (row.price || row.close || row.value) as number || 0,
   }));
 }
 

@@ -21,3 +21,5 @@ export {
   type ChartDataPoint,
 } from './transformedDataLoader';
 export * from './urlParamsParser';
+export * from './websocketAdapter';
+export * from './websocketManager';

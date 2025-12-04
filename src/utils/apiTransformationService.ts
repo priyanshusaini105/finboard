@@ -93,10 +93,10 @@ export async function transformApiData(
     console.log(`✨ [Transform Service] Transformation result:`, {
       success: transformedResponse.success,
       hasData: !!transformedResponse.data,
-      rowCount: (transformedResponse.data as any)?.rows?.length,
-      columnCount: (transformedResponse.data as any)?.columns?.length,
+      rowCount: (transformedResponse.data as FinancialDataset)?.rows?.length,
+      columnCount: (transformedResponse.data as FinancialDataset)?.columns?.length,
       error: transformedResponse.error,
-      columns: (transformedResponse.data as any)?.columns?.map((c: any) => ({ key: c.key, label: c.label, type: c.type }))
+      columns: (transformedResponse.data as FinancialDataset)?.columns?.map((c: ColumnDefinition) => ({ key: c.key, label: c.label, type: c.type }))
     });
 
     if (!transformedResponse.success) {
@@ -113,14 +113,14 @@ export async function transformApiData(
     }
 
     console.log(
-      `✅ [Transform Service] Transformation successful: ${(transformedResponse.data as any).rows.length} rows, ${(transformedResponse.data as any).columns.length} columns`
+      `✅ [Transform Service] Transformation successful: ${(transformedResponse.data as FinancialDataset).rows.length} rows, ${(transformedResponse.data as FinancialDataset).columns.length} columns`
     );
 
     return {
       success: true,
       useTransformedData: true,
-      data: transformedResponse.data as any,
-      columns: (transformedResponse.data as any).columns,
+      data: transformedResponse.data as FinancialDataset,
+      columns: (transformedResponse.data as FinancialDataset).columns,
     };
   } catch (error) {
     console.error('❌ [Transform Service] Error during transformation:', error);

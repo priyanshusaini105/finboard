@@ -8,11 +8,6 @@ import { transformApiData, shouldTransformApi, type ColumnDefinition, parseUrlPa
 import { useApiTesting } from "@/src/hooks";
 import { HeaderInput, DisplaySettings, FieldSelector, UrlParamsInput } from ".";
 
-interface UrlParam {
-  key: string;
-  value: string;
-}
-
 interface AddWidgetModalProps {
   isOpen: boolean;
   onClose: () => void;

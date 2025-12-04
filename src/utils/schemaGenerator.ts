@@ -169,10 +169,10 @@ function analyzeArrayItems(arr: unknown[]): { itemType: FieldType; itemSchema?: 
     // Detect tuple: check if inner array has consistent length and detect types of each position
     const isTuple = arr.every((item: unknown) => Array.isArray(item) && item.length === firstItem.length);
     
-    if (isTuple && (firstItem as unknown[]).length <= 10) {
+    if (isTuple && firstItem.length <= 10) {
       // Analyze each position in the tuple
       const tupleTypes: FieldType[] = [];
-      for (let i = 0; i < (firstItem as unknown[]).length; i++) {
+      for (let i = 0; i < firstItem.length; i++) {
         const positionTypes = new Set<FieldType>();
         arr.slice(0, Math.min(10, arr.length)).forEach((item: unknown) => {
           if (Array.isArray(item) && item[i] !== undefined) {
@@ -323,11 +323,7 @@ export function printSchema(schema: DataSchema, indent = 0): string {
   // Print Data Fields (non-metadata)
   if (Object.keys(schema.dataFields || {}).length > 0) {
     output += `${spaces}=== DATA FIELDS ===\n`;
-<<<<<<< HEAD
     for (const field of Object.values(schema.dataFields!)) {
-=======
-    for (const [, field] of Object.entries(schema.dataFields!)) {
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
       output += printField(field, indent + 2);
     }
     output += `${spaces}\n`;
@@ -336,11 +332,7 @@ export function printSchema(schema: DataSchema, indent = 0): string {
   // Print Metadata Fields (separated)
   if (Object.keys(schema.metadata || {}).length > 0) {
     output += `${spaces}=== METADATA FIELDS (Excluded) ===\n`;
-<<<<<<< HEAD
     for (const field of Object.values(schema.metadata!)) {
-=======
-    for (const [, field] of Object.entries(schema.metadata!)) {
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
       output += printField(field, indent + 2);
     }
   }
@@ -369,13 +361,8 @@ function printField(field: FieldSchema, indent = 0): string {
 
   // Print nested object schema
   if (field.objectSchema) {
-<<<<<<< HEAD
     output += `${spaces}  {\\n`;
     for (const nestedField of Object.values(field.objectSchema)) {
-=======
-    output += `${spaces}  {\n`;
-    for (const [, nestedField] of Object.entries(field.objectSchema)) {
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
       output += printField(nestedField, indent + 4);
     }
     output += `${spaces}  }\\n`;

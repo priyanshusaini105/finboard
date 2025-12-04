@@ -133,7 +133,10 @@ export const useRealtimeData = (
   // Function to flush buffer and update React state
   const flushBufferToState = useCallback((widgetId: string) => {
     const buffer = widgetBuffers.get(widgetId);
-    if (!buffer || buffer.trades.length === 0) return;
+    if (!buffer || buffer.trades.length === 0) {
+      console.log(`[flushBufferToState] Widget ${widgetId}: No trades to flush`);
+      return;
+    }
 
     const trades = buffer.trades;
     buffer.trades = [];
@@ -169,13 +172,16 @@ export const useRealtimeData = (
     buffer.chartData = addSecondDataPoint(buffer.chartData, aggregatedPoint);
     
     console.log(`[flushBufferToState] Widget ${widgetId}: Flushed ${trades.length} trades for ${timeStr}. Total points: ${buffer.chartData.length}`);
+    console.log(`[flushBufferToState] Aggregated point:`, aggregatedPoint);
 
-    // Update React state
+    // Update React state - CRITICAL: Need to create new array reference for React to detect change
     if (mountedRef.current) {
-      setRealtimeDataRef.current(buffer.chartData);
+      const newChartData = [...buffer.chartData];
+      console.log(`[flushBufferToState] Updating state with ${newChartData.length} data points`);
+      setRealtimeDataRef.current(newChartData);
       setLastUpdateTimeRef.current(Date.now());
-      updateRealtimeDataRef.current(widgetId, buffer.chartData);
-      onDataUpdateRef.current?.(buffer.chartData);
+      updateRealtimeDataRef.current(widgetId, newChartData);
+      onDataUpdateRef.current?.(newChartData);
     }
   }, []);
 
@@ -189,14 +195,17 @@ export const useRealtimeData = (
   // Track mount state and sync buffer data on mount
   useEffect(() => {
     mountedRef.current = true;
+    console.log(`[useRealtimeData] Mounted for widget ${widget.id}`);
     
     // Restore data from global buffer if exists
     const buffer = widgetBuffers.get(widget.id);
     if (buffer && buffer.chartData.length > 0) {
-      setRealtimeData(buffer.chartData);
+      console.log(`[useRealtimeData] Restoring ${buffer.chartData.length} data points from buffer`);
+      setRealtimeData([...buffer.chartData]);
     }
     
     return () => {
+      console.log(`[useRealtimeData] Unmounting for widget ${widget.id}`);
       mountedRef.current = false;
     };
   }, [widget.id]);
@@ -207,12 +216,16 @@ export const useRealtimeData = (
       if (!mountedRef.current) return;
       
       try {
-        if (trade.provider === 'finnhub') {
+        console.log('[handleRealtimeMessage] Received trade:', { provider: trade.provider, type: trade.type, symbol: trade.s, price: trade.p });
+        
+        if (trade.provider === 'finnhub' || trade.type === 'trade') {
           const transformed = transformFinnhubTrade(trade as unknown as { p: number; v: number; s: string; t: number });
 
           // Check if this trade is for a symbol we're interested in
           const subscribedSymbols = normalizedSymbolsRef.current;
           const isSubscribedSymbol = subscribedSymbols.includes(transformed.symbol);
+
+          console.log(`[handleRealtimeMessage] Transformed trade: symbol=${transformed.symbol}, price=${transformed.price}, subscribedSymbols=${subscribedSymbols.join(',')}, isSubscribed=${isSubscribedSymbol}`);
 
           if (isSubscribedSymbol) {
             const buffer = getOrCreateBuffer(widget.id);
@@ -231,6 +244,8 @@ export const useRealtimeData = (
               volume: transformed.volume,
               fullDate: transformed.fullDate,
             });
+
+            console.log(`[handleRealtimeMessage] Added trade to buffer. Current trades in buffer: ${buffer.trades.length}`);
 
             // Reset timer
             if (buffer.timer) {

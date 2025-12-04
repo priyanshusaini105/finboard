@@ -34,6 +34,7 @@ export interface ChartDataPoint {
   low?: number;
   close?: number;
   receivedAt?: number; // Client timestamp when data was received (for queue management)
+  [key: string]: unknown; // Allow additional dynamic properties
 }
 
 /**

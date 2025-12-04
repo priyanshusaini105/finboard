@@ -7,7 +7,6 @@
 
 import { DataSchema, FieldSchema, FieldType } from './schemaGenerator';
 import {
-  PricePoint,
   ColumnDefinition,
 } from './commonFinancialSchema';
 
@@ -177,6 +176,7 @@ export class SchemaMapper {
         price[rule.targetField] = `{{${match.path}}}`;
       }
     }
+
     return price;
   }
 
@@ -267,6 +267,7 @@ export class SchemaMapper {
   private hasOHLCVFields(fields: Record<string, FieldSchema>): boolean {
     const requiredFields = ['open', 'high', 'low', 'close', 'volume'];
     let matchCount = 0;
+
     for (const key of Object.keys(fields)) {
       const lowerKey = key.toLowerCase();
       if (requiredFields.some(req => lowerKey.includes(req))) {
@@ -371,7 +372,6 @@ export class SchemaMapper {
     };
   }
 
-<<<<<<< HEAD
   private extractMappingPaths(obj: Record<string, string>): Record<string, string> {
     const result: Record<string, string> = {};
     

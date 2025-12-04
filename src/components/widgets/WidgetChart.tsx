@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import {
   Line,
   XAxis,
@@ -204,6 +204,8 @@ interface WidgetChartProps {
 
 function WidgetChartComponent({
   widget,
+  onConfigure,
+  onDelete,
   hideHeader = false,
 }: WidgetChartProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -213,7 +215,7 @@ function WidgetChartComponent({
   const { updateWidgetTitle } = useStore();
 
   // Use TanStack Query for data fetching with caching
-  const { data, isLoading, error, isFetching } = useWidgetData(widget);
+  const { data, isLoading, error, isFetching, refetch } = useWidgetData(widget);
 
   // Transform API data for chart display using universal adapter
   const chartData = useMemo(() => {
@@ -260,7 +262,7 @@ function WidgetChartComponent({
     const fields = new Set<string>();
     displayData.forEach(point => {
       Object.keys(point).forEach(key => {
-        if (key !== 'date' && typeof point[key] === 'number') {
+        if (key !== 'date' && typeof (point as unknown as Record<string, unknown>)[key] === 'number') {
           fields.add(key);
         }
       });
@@ -439,7 +441,7 @@ function WidgetChartComponent({
       case 'candlestick':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
+            <ComposedChart data={displayData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
               <YAxis stroke="#9CA3AF" fontSize={12} domain={['auto', 'auto']} tickFormatter={(v) => `₹${v}`} />
@@ -463,7 +465,7 @@ function WidgetChartComponent({
       case 'ohlc':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
+            <ComposedChart data={displayData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
               <YAxis stroke="#9CA3AF" fontSize={12} domain={['auto', 'auto']} tickFormatter={(v) => `₹${v}`} />
@@ -488,7 +490,7 @@ function WidgetChartComponent({
         const priceKey = availableFields.includes('close') ? 'close' : 'price';
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
+            <ComposedChart data={displayData}>
               <defs>
                 <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>
@@ -501,8 +503,8 @@ function WidgetChartComponent({
               <Tooltip content={<CustomTooltip />} />
               <Legend />
               <Area type="monotone" dataKey={priceKey} stroke="#3B82F6" fillOpacity={1} fill="url(#colorPrice)" name="Price" />
-              {chartData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
-              {chartData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
+              {displayData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
+              {displayData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
             </ComposedChart>
           </ResponsiveContainer>
         );
@@ -510,7 +512,7 @@ function WidgetChartComponent({
       case 'bar':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
+            <BarChart data={displayData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
               <YAxis stroke="#9CA3AF" fontSize={12} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
@@ -531,7 +533,7 @@ function WidgetChartComponent({
               <YAxis dataKey={yField} stroke="#9CA3AF" fontSize={12} name={yField} />
               <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
               <Legend />
-              <Scatter name={`${xField} vs ${yField}`} data={chartData} fill="#3B82F6" />
+              <Scatter name={`${xField} vs ${yField}`} data={displayData} fill="#3B82F6" />
             </ScatterChart>
           </ResponsiveContainer>
         );
@@ -540,7 +542,7 @@ function WidgetChartComponent({
         const lineFields = availableFields.filter(f => f !== 'volume').slice(0, 4);
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
+            <ComposedChart data={displayData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
               <YAxis stroke="#9CA3AF" fontSize={12} />
@@ -560,7 +562,7 @@ function WidgetChartComponent({
           <div className="space-y-4">
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData}>
+                <ComposedChart data={displayData}>
                   {selectedChartType === 'area-volume' && (
                     <defs>
                       <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
@@ -579,15 +581,15 @@ function WidgetChartComponent({
                   ) : (
                     <Line type="monotone" dataKey={mainKey} stroke="#3B82F6" strokeWidth={2} dot={false} name="Price" />
                   )}
-                  {chartData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
-                  {chartData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
+                  {displayData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
+                  {displayData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
             <div className="h-32">
               <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Volume</h4>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
+                <BarChart data={displayData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis dataKey="date" stroke="#9CA3AF" fontSize={10} />
                   <YAxis stroke="#9CA3AF" fontSize={10} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
@@ -604,15 +606,15 @@ function WidgetChartComponent({
         const defaultKey = availableFields.includes('close') ? 'close' : availableFields.includes('price') ? 'price' : availableFields[0];
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
+            <ComposedChart data={displayData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
               <YAxis stroke="#9CA3AF" fontSize={12} domain={['dataMin - 10', 'dataMax + 10']} tickFormatter={(v) => `₹${v}`} />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
               <Line type="monotone" dataKey={defaultKey} stroke="#3B82F6" strokeWidth={2} dot={false} name="Price" />
-              {chartData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
-              {chartData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
+              {displayData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
+              {displayData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
             </ComposedChart>
           </ResponsiveContainer>
         );
@@ -878,100 +880,6 @@ function WidgetChartComponent({
               transition={{ duration: 0.3, ease: "easeOut" }}
             >
               {renderChart()}
-            </motion.div>
-          ) : (
-
-                    {/* Price Line */}
-                    <Line
-                      type="monotone"
-                      dataKey="price"
-                      stroke="#3B82F6"
-                      strokeWidth={2}
-                      dot={false}
-                      name="Price"
-                    />
-
-                    {/* Moving Averages - only show if data is available */}
-                    {chartData.some(
-                      (d: ChartDataPoint) => d.dma50 !== null && d.dma50 !== undefined
-                    ) && (
-                      <Line
-                        type="monotone"
-                        dataKey="dma50"
-                        stroke="#F59E0B"
-                        strokeWidth={1}
-                        dot={false}
-                        name="50 DMA"
-                        strokeDasharray="5 5"
-                      />
-                    )}
-                    {chartData.some(
-                      (d: ChartDataPoint) => d.dma200 !== null && d.dma200 !== undefined
-                    ) && (
-                      <Line
-                        type="monotone"
-                        dataKey="dma200"
-                        stroke="#EF4444"
-                        strokeWidth={1}
-                        dot={false}
-                        name="200 DMA"
-                        strokeDasharray="5 5"
-                      />
-                    )}
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </motion.div>
-
-              {/* Volume Chart - only show if volume data is available */}
-              <AnimatePresence>
-                {displayData.some((d: ChartDataPoint) => d.volume !== undefined && d.volume > 0) && (
-                  <motion.div
-                    className="h-32"
-                    layout
-                    initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                    animate={{ opacity: 1, height: 128, marginTop: 16 }}
-                    exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                  >
-                    <h4 className="text-sm font-medium text-slate-300 mb-2">
-                      Volume
-                    </h4>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={displayData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                        <XAxis
-                          dataKey="date"
-                          stroke="#9CA3AF"
-                          fontSize={10}
-                          tickMargin={5}
-                        />
-                        <YAxis
-                          stroke="#9CA3AF"
-                          fontSize={10}
-                          tickFormatter={(value) => {
-                            if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-                            if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
-                            return value.toFixed(2);
-                          }}
-                        />
-                        <Tooltip
-                          formatter={(value: number) => {
-                            if (value >= 1000000) return [`${(value / 1000000).toFixed(2)}M`, "Volume"];
-                            if (value >= 1000) return [`${(value / 1000).toFixed(2)}K`, "Volume"];
-                            return [value.toFixed(4), "Volume"];
-                          }}
-                          labelStyle={{ color: "#9CA3AF" }}
-                          contentStyle={{
-                            backgroundColor: "#1F2937",
-                            border: "1px solid #374151",
-                          }}
-                        />
-                        <Bar dataKey="volume" fill="#6366F1" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </motion.div>
           ) : (
             <motion.div
