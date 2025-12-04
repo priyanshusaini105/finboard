@@ -33,11 +33,11 @@ class WebSocketManagerClass {
   private connectionAttemptCount: Map<string, number> = new Map();
 
   // Configuration
-  private maxReconnectAttempts = 3;
-  private initialReconnectDelay = 2000; // 2 seconds
-  private maxReconnectDelay = 30000; // 30 seconds
-  private minReconnectDelay = 2000;
-  private connectionTimeout = 5000; // 5 seconds
+  private maxReconnectAttempts = 5;
+  private initialReconnectDelay = 3000; // 3 seconds
+  private maxReconnectDelay = 60000; // 60 seconds
+  private minReconnectDelay = 3000;
+  private connectionTimeout = 10000; // 10 seconds
   private rateLimitResetTime = 60000; // 1 minute
 
   /**
@@ -67,10 +67,29 @@ class WebSocketManagerClass {
       }
 
       // Check if already connected
-      if (this.connections.has(provider) && this.connections.get(provider)?.readyState === WebSocket.OPEN) {
-        console.log(`✓ Already connected to ${provider}`);
-        resolve();
-        return;
+      const existingWs = this.connections.get(provider);
+      if (existingWs) {
+        if (existingWs.readyState === WebSocket.OPEN) {
+          console.log(`✓ Already connected to ${provider}`);
+          resolve();
+          return;
+        }
+        if (existingWs.readyState === WebSocket.CONNECTING) {
+          console.log(`⏳ Connection in progress to ${provider}, waiting...`);
+          // Wait for existing connection attempt
+          const checkInterval = setInterval(() => {
+            if (existingWs.readyState === WebSocket.OPEN) {
+              clearInterval(checkInterval);
+              resolve();
+            } else if (existingWs.readyState === WebSocket.CLOSED || existingWs.readyState === WebSocket.CLOSING) {
+              clearInterval(checkInterval);
+              this.connections.delete(provider);
+              // Retry connection
+              this.connect(provider).then(resolve).catch(reject);
+            }
+          }, 100);
+          return;
+        }
       }
 
       // Check rate limiting
@@ -118,16 +137,35 @@ class WebSocketManagerClass {
 
         ws.addEventListener('error', (event: Event) => {
           clearTimeout(connectionTimeoutId);
-          const errorMsg = `WebSocket error (${provider})`;
-          console.error(`❌ ${errorMsg}:`, event);
+          console.error(`❌ WebSocket error (${provider}):`, event);
+          console.error('WebSocket state:', ws.readyState);
+          console.error('WebSocket URL:', this.buildUrl(provider));
+          
+          let errorMsg = `WebSocket connection error`;
+          
+          // Try to get more specific error information
+          if (event instanceof ErrorEvent) {
+            errorMsg += `: ${event.message}`;
+          }
           
           // Detect rate limiting
           const eventStr = String(event);
           if (eventStr.includes('429') || eventStr.includes('rate') || eventStr.includes('too many')) {
             console.warn(`⚠️ Rate limited detected (429)`);
+            errorMsg = `Rate limited - too many requests. Please wait a minute before retrying.`;
             this.rateLimitInfo.set(provider, {
               retryAfter: Date.now() + this.rateLimitResetTime,
             });
+          }
+          
+          // Check for common issues
+          const url = this.buildUrl(provider);
+          if (url.includes('token=')) {
+            const tokenMatch = url.match(/token=([^&]+)/);
+            const token = tokenMatch?.[1] || '';
+            if (token.length > 30) {
+              errorMsg += ` - API token appears too long (${token.length} chars). Finnhub tokens are typically ~20 characters.`;
+            }
           }
           
           reject(new Error(errorMsg));
@@ -201,8 +239,15 @@ class WebSocketManagerClass {
     }
     this.subscriptions.get(provider)?.add(config);
 
-    // Send subscription message
+    // Immediately inform subscriber of current connection state so UI reflects reality
     const ws = this.connections.get(provider);
+    if (ws?.readyState === WebSocket.OPEN) {
+      config.onConnectionChange?.(true);
+    } else if (ws?.readyState === WebSocket.CONNECTING) {
+      config.onConnectionChange?.(false);
+    }
+
+    // Send subscription message
     if (ws && ws.readyState === WebSocket.OPEN) {
       this.sendSubscriptionMessage(provider, symbol, 'subscribe');
     }
@@ -357,9 +402,34 @@ class WebSocketManagerClass {
     }
 
     if (attempts >= this.maxReconnectAttempts) {
-      console.error(`❌ Max reconnection attempts (${this.maxReconnectAttempts}) reached. Please verify your API token and try again.`);
+      console.error(`❌ Max reconnection attempts (${this.maxReconnectAttempts}) reached.`);
+      
+      // Provide more specific troubleshooting guidance
+      let errorMessage = 'Connection failed after multiple attempts.\n\n';
+      errorMessage += 'Common causes:\n';
+      errorMessage += '• Invalid or expired Finnhub API token\n';
+      errorMessage += '• Network connectivity issues\n';
+      errorMessage += '• Finnhub service may be temporarily unavailable\n\n';
+      
+      // Check for common token issues
+      const url = this.config?.url || '';
+      const tokenMatch = url.match(/token=([^&]+)/);
+      if (tokenMatch) {
+        const token = tokenMatch[1];
+        // Finnhub tokens are typically around 20-25 characters
+        if (token.length > 30) {
+          errorMessage += '⚠️ Your API token appears to be too long.\n';
+          errorMessage += 'Typical Finnhub tokens are ~20 characters.\n\n';
+        }
+        if (!token || token === 'undefined' || token === 'null') {
+          errorMessage += '⚠️ No valid API token found.\n\n';
+        }
+      }
+      
+      errorMessage += 'To fix: Get a free API key from https://finnhub.io';
+      
       subs.forEach((sub) => {
-        sub.onError?.(new Error('Max reconnection attempts reached. Please verify your API token.'));
+        sub.onError?.(new Error(errorMessage));
         sub.onConnectionChange?.(false);
       });
       return;
@@ -439,6 +509,31 @@ class WebSocketManagerClass {
     });
 
     return Array.from(symbols);
+  }
+
+  /**
+   * Reset reconnection attempts for a provider (allows retry)
+   */
+  resetReconnectAttempts(provider: WebSocketProvider): void {
+    this.reconnectAttempts.set(provider, 0);
+    this.rateLimitInfo.delete(provider);
+    console.log(`🔄 Reset reconnection state for ${provider}`);
+  }
+
+  /**
+   * Force reconnect - useful after fixing configuration issues
+   */
+  async forceReconnect(provider: WebSocketProvider): Promise<void> {
+    console.log(`🔄 Force reconnecting ${provider}...`);
+    
+    // Disconnect existing connection
+    this.disconnect(provider);
+    
+    // Reset attempts
+    this.resetReconnectAttempts(provider);
+    
+    // Reconnect
+    await this.connect(provider);
   }
 }
 

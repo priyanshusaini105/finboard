@@ -67,6 +67,7 @@ export default function AddWidgetModal({
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
   const [customSymbol, setCustomSymbol] = useState("");
   const [showRealtimePanel, setShowRealtimePanel] = useState(false);
+  const [realtimeSymbol, setRealtimeSymbol] = useState("");
 
   const {
     isTestingApi,

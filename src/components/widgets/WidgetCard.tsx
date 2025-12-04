@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { RefreshCw, Settings, X } from "lucide-react";
+import { useState, useMemo } from "react";
+import { RefreshCw, Settings, X, TrendingUp, TrendingDown, Activity } from "lucide-react";
 import { Widget } from "@/src/types";
-import { mapFieldPath } from "@/src/utils";
-import { useWidgetData } from "@/src/hooks";
+import { mapFieldPath, formatForCardView } from "@/src/utils";
+import { useWidgetData, useRealtimeData } from "@/src/hooks";
 import { useStore } from "@/src/store";
 
 interface WidgetCardProps {
@@ -24,6 +24,18 @@ export default function WidgetCard({
 
   // Use TanStack Query for data fetching with caching
   const { data, isLoading, error, isFetching } = useWidgetData(widget);
+
+  // Setup real-time data connection if enabled
+  const realtimeResult = useRealtimeData(widget, []);
+  
+  // Check if we have real-time data to display
+  const hasRealtimeData = widget.enableRealtime && realtimeResult.isConnected && realtimeResult.realtimeData.length > 0;
+  
+  // Format real-time data for card display
+  const realtimeCardData = useMemo(() => {
+    if (!hasRealtimeData) return null;
+    return formatForCardView(realtimeResult.realtimeData);
+  }, [hasRealtimeData, realtimeResult.realtimeData]);
 
   const handleTitleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -190,17 +202,141 @@ export default function WidgetCard({
 
       {/* Widget Content */}
       <div className="p-4 h-full overflow-y-auto">
+        {/* Real-time Data Display (Priority) */}
+        {hasRealtimeData && realtimeCardData && (
+          <div className="mb-4 space-y-3">
+            {/* Real-time Indicator */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                <Activity className="w-3 h-3 animate-pulse text-green-500" />
+                LIVE
+              </span>
+              <span className="text-xs text-slate-400">
+                {realtimeCardData.time}
+              </span>
+            </div>
+
+            {/* Price Display */}
+            <div className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 dark:from-blue-500/20 dark:to-purple-500/20 p-4 rounded-lg border border-blue-500/20">
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl font-bold text-slate-900 dark:text-white">
+                    ${typeof realtimeCardData.price === 'number' ? realtimeCardData.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : realtimeCardData.price}
+                  </span>
+                  {typeof realtimeCardData.priceChangePercent === 'number' && (
+                    <div className={`flex items-center gap-1 text-sm font-semibold ${
+                      realtimeCardData.priceChangePercent >= 0 ? 'text-green-500' : 'text-red-500'
+                    }`}>
+                      {realtimeCardData.priceChangePercent >= 0 ? (
+                        <TrendingUp className="w-4 h-4" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4" />
+                      )}
+                      {realtimeCardData.priceChangePercent >= 0 ? '+' : ''}
+                      {realtimeCardData.priceChangePercent.toFixed(2)}%
+                    </div>
+                  )}
+                </div>
+                
+                {typeof realtimeCardData.priceChange === 'number' && (
+                  <div className={`text-sm ${
+                    realtimeCardData.priceChange >= 0 ? 'text-green-500' : 'text-red-500'
+                  }`}>
+                    {realtimeCardData.priceChange >= 0 ? '+' : ''}
+                    ${realtimeCardData.priceChange.toFixed(2)}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Additional Real-time Stats */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-slate-100 dark:bg-slate-700/50 p-3 rounded-lg">
+                <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Volume</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {typeof realtimeCardData.volume === 'number' 
+                    ? realtimeCardData.volume.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })
+                    : realtimeCardData.volume}
+                </div>
+              </div>
+              
+              <div className="bg-slate-100 dark:bg-slate-700/50 p-3 rounded-lg">
+                <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">Date</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {realtimeCardData.date}
+                </div>
+              </div>
+            </div>
+
+            {realtimeResult.realtimeData.length > 0 && (
+              <div className="text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-600">
+                {realtimeResult.realtimeData.length} trade{realtimeResult.realtimeData.length !== 1 ? 's' : ''} received
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* WebSocket Connection Status (when enabled but not connected/no data) */}
+        {widget.enableRealtime && !hasRealtimeData && (
+          <div className="mb-4 space-y-3">
+            <div className={`${realtimeResult.isError ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700'} border rounded-lg p-4`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Activity className={`w-4 h-4 ${realtimeResult.isError ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400 animate-pulse'}`} />
+                <span className={`text-sm font-medium ${realtimeResult.isError ? 'text-red-800 dark:text-red-200' : 'text-yellow-800 dark:text-yellow-200'}`}>
+                  {realtimeResult.isError 
+                    ? 'Connection Failed' 
+                    : realtimeResult.isConnected 
+                      ? 'Waiting for trades...' 
+                      : 'Connecting to real-time feed...'}
+                </span>
+              </div>
+              <div className={`text-xs ${realtimeResult.isError ? 'text-red-700 dark:text-red-300' : 'text-yellow-700 dark:text-yellow-300'} space-y-1`}>
+                <div>Status: {
+                  realtimeResult.connectionState === 'connected' ? '🟢 Connected' :
+                  realtimeResult.connectionState === 'error' ? '🔴 Error' :
+                  realtimeResult.connectionState === 'reconnecting' ? '🟠 Reconnecting' :
+                  '🟡 Connecting'
+                }</div>
+                {widget.websocketSymbols && widget.websocketSymbols.length > 0 && (
+                  <div>Symbols: {widget.websocketSymbols.join(', ')}</div>
+                )}
+                {widget.realtimeSymbol && (
+                  <div>Symbol: {widget.realtimeSymbol}</div>
+                )}
+                {realtimeResult.isConnected && realtimeResult.realtimeData.length === 0 && (
+                  <div className="text-blue-600 dark:text-blue-400 mt-1">
+                    Waiting for trades... (market may be closed)
+                  </div>
+                )}
+                {realtimeResult.isError && realtimeResult.errorMessage && (
+                  <div className="text-red-600 dark:text-red-400 mt-2 whitespace-pre-line">
+                    {realtimeResult.errorMessage}
+                  </div>
+                )}
+                {realtimeResult.isError && (
+                  <button
+                    onClick={() => realtimeResult.retry()}
+                    className="mt-3 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    Retry Connection
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {error ? (
           <div className="text-red-500 dark:text-red-400 text-sm">
             Error: {error.message}
           </div>
-        ) : isLoading ? (
+        ) : isLoading && !widget.enableRealtime ? (
           <div className="space-y-3">
             <div className="h-4 bg-slate-200 dark:bg-slate-600 rounded w-3/4"></div>
             <div className="h-4 bg-slate-200 dark:bg-slate-600 rounded w-1/2"></div>
             <div className="h-32 bg-slate-200 dark:bg-slate-600 rounded"></div>
           </div>
-        ) : data?.data ? (
+        ) : data?.data && !hasRealtimeData && !widget.enableRealtime ? (
           <div className="space-y-4">
             {/* Group fields by type for better presentation */}
             {(() => {
@@ -372,9 +508,9 @@ export default function WidgetCard({
               </div>
             )}
           </div>
-        ) : (
+        ) : !widget.enableRealtime ? (
           <div className="text-slate-400 text-sm">No data available</div>
-        )}
+        ) : null}
       </div>
     </div>
   );

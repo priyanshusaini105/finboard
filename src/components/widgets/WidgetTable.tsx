@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, JSX, useEffect } from "react";
+import { useState, JSX, useEffect, useMemo } from "react";
 import {
   RefreshCw,
   Settings,
@@ -9,10 +9,11 @@ import {
   ChevronRight,
   Filter,
   XCircle,
+  Activity,
 } from "lucide-react";
 import { Widget } from "@/src/types";
-import { useWidgetData } from "@/src/hooks";
-import { type ApiError, type ColumnDefinition, mapFieldPath } from "@/src/utils";
+import { useWidgetData, useRealtimeData } from "@/src/hooks";
+import { type ApiError, type ColumnDefinition, mapFieldPath, formatForTableView } from "@/src/utils";
 import { useStore } from "@/src/store";
 
 interface WidgetTableProps {
@@ -53,6 +54,21 @@ export default function WidgetTable({
   const [dateRanges, setDateRanges] = useState<Record<string, { min: number; max: number; currentMin: number; currentMax: number }>>({});
   const [stringSelections, setStringSelections] = useState<Record<string, string[]>>({});
   const itemsPerPage = 6;
+
+  // Setup real-time data connection if enabled
+  const realtimeResult = useRealtimeData(widget, []);
+  
+  // Check if we have real-time data to display
+  const hasRealtimeData = widget.enableRealtime && realtimeResult.isConnected && realtimeResult.realtimeData.length > 0;
+  
+  // Format real-time data for table display
+  const realtimeTableData = useMemo(() => {
+    if (!hasRealtimeData) return null;
+    return formatForTableView(realtimeResult.realtimeData, 100);
+  }, [hasRealtimeData, realtimeResult.realtimeData]);
+
+  // Use real-time data if available, otherwise use API data
+  const displayData = hasRealtimeData && realtimeTableData ? realtimeTableData : data;
 
   const handleTitleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -128,8 +144,6 @@ export default function WidgetTable({
     return String(value);
   };
 
-<<<<<<< HEAD
-=======
   useEffect(() => {
     // Debug logging to trace data flow
     console.log('=== WidgetTable Debug ===');
@@ -142,20 +156,18 @@ export default function WidgetTable({
     console.log('========================');
   }, [widget, queryResult, widgetData, data, columns, useTransformedData]);
 
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
   // Convert data to array format for table display
   const getTableData = () => {
-    if (!data) return [];
-
-    // Data is already transformed by the Dashboard using transformData()
-    // It should be an array of objects ready for table display
-    if (Array.isArray(data)) {
-      return data;
+    // Prioritize real-time data if available
+    if (displayData && Array.isArray(displayData)) {
+      return displayData;
     }
+    
+    if (!displayData) return [];
 
     // Fallback: if data is not an array, convert single object to array
-    if (typeof data === "object") {
-      return [data];
+    if (typeof displayData === "object") {
+      return [displayData];
     }
 
     return [];
@@ -943,6 +955,12 @@ export default function WidgetTable({
           {isFromCache && (
             <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" title="Using cached data"></div>
           )}
+          {hasRealtimeData && (
+            <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded flex items-center gap-1">
+              <Activity className="w-3 h-3 animate-pulse" />
+              LIVE
+            </span>
+          )}
           <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-1 rounded">
             TABLE
           </span>
@@ -1046,11 +1064,7 @@ export default function WidgetTable({
             {searchTerm && (
               <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs">
                 <Search className="w-3 h-3" />
-<<<<<<< HEAD
                 <span>Search: &quot;{searchTerm}&quot;</span>
-=======
-                <span>Search: &ldquo;{searchTerm}&rdquo;</span>
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
                 <button
                   onClick={() => setSearchTerm("")}
                   className="hover:text-blue-900 dark:hover:text-blue-100"

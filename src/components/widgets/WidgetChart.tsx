@@ -19,13 +19,10 @@ import {
 import { RefreshCw, Settings, X, TrendingUp, TrendingDown, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Widget } from "@/src/types";
-import { getSymbolFromUrl } from "@/src/utils";
-import { useWidgetData } from "@/src/hooks";
-import { useRealtimeData } from "@/src/hooks";
-import { type ChartDataPoint } from "@/src/utils";
-import { ChartSkeleton } from "@/src/components/ui";
+import { getSymbolFromUrl, formatForChartView, getRollingWindowStats, type ChartDataPoint } from "@/src/utils";
+import { useWidgetData, useRealtimeData } from "@/src/hooks";
+import { ChartSkeleton, WidgetRealtimeIndicator } from "@/src/components";
 import { useStore } from "@/src/store";
-import { WidgetRealtimeIndicator } from "@/src/components";
 
 interface TooltipPayload {
   dataKey: string;
@@ -236,12 +233,32 @@ function WidgetChartComponent({
     }
   }, [data?.data]);
 
-<<<<<<< HEAD
+  // Setup real-time data connection
+  const realtimeResult = useRealtimeData(widget, chartData);
+
+  // Merge polling data with real-time data (prefer real-time if connected)
+  // Format data for chart display with proper time labels
+  const displayData = useMemo(() => {
+    if (realtimeResult.isConnected && realtimeResult.realtimeData.length > 0) {
+      // Format real-time data for chart view - show all recorded data (up to 1000 points)
+      return formatForChartView(realtimeResult.realtimeData, 1000);
+    }
+    return chartData;
+  }, [chartData, realtimeResult.isConnected, realtimeResult.realtimeData]);
+
+  // Get statistics for real-time data
+  const rollingStats = useMemo(() => {
+    if (realtimeResult.isConnected && realtimeResult.realtimeData.length > 0) {
+      return getRollingWindowStats(realtimeResult.realtimeData);
+    }
+    return null;
+  }, [realtimeResult.isConnected, realtimeResult.realtimeData]);
+
   // Detect available fields in the data
   const availableFields = useMemo(() => {
-    if (chartData.length === 0) return [];
+    if (displayData.length === 0) return [];
     const fields = new Set<string>();
-    chartData.forEach(point => {
+    displayData.forEach(point => {
       Object.keys(point).forEach(key => {
         if (key !== 'date' && typeof point[key] === 'number') {
           fields.add(key);
@@ -249,7 +266,7 @@ function WidgetChartComponent({
       });
     });
     return Array.from(fields);
-  }, [chartData]);
+  }, [displayData]);
 
   // Define available chart types based on data
   const chartOptions = useMemo((): ChartOption[] => {
@@ -367,43 +384,20 @@ function WidgetChartComponent({
     }
   }, [chartOptions, availableFields, selectedChartType]);
 
-  // Calculate price change
-  const priceChange = useMemo(() => {
-    if (chartData.length < 2) return { change: 0, percentage: 0 };
-
-    const latestPrice = chartData[chartData.length - 1]?.close || chartData[chartData.length - 1]?.price || 0;
-    const previousPrice = chartData[chartData.length - 2]?.close || chartData[chartData.length - 2]?.price || 0;
-=======
-  // Setup real-time data connection
-  const realtimeResult = useRealtimeData(widget, chartData);
-
-  // Merge polling data with real-time data (prefer real-time if connected)
-  const displayData = useMemo(() => {
-    if (realtimeResult.isConnected && realtimeResult.realtimeData.length > 0) {
-      return realtimeResult.realtimeData;
-    }
-    return chartData;
-  }, [chartData, realtimeResult.isConnected, realtimeResult.realtimeData]);
-
-  // Calculate price change from display data
+  // Calculate price change from display data (comparing first and last points)
   const priceChange = useMemo(() => {
     if (displayData.length < 2) return { change: 0, percentage: 0 };
 
     const latestPrice = displayData[displayData.length - 1]?.price || 0;
-    const previousPrice = displayData[displayData.length - 2]?.price || 0;
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
-    const change = latestPrice - previousPrice;
-    const percentage = previousPrice ? (change / previousPrice) * 100 : 0;
+    const firstPrice = displayData[0]?.price || latestPrice;
+    const change = latestPrice - firstPrice;
+    const percentage = firstPrice ? (change / firstPrice) * 100 : 0;
 
     return { change, percentage };
   }, [displayData]);
 
   const isPositive = priceChange.change >= 0;
-<<<<<<< HEAD
-  const currentPrice = chartData[chartData.length - 1]?.close || chartData[chartData.length - 1]?.price || 0;
-=======
-  const currentPrice = displayData[displayData.length - 1]?.price || 0;
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
+  const currentPrice = displayData[displayData.length - 1]?.close || displayData[displayData.length - 1]?.price || 0;
 
   // Extract stock symbol from API URL
   const stockSymbol = useMemo(() => {
@@ -682,6 +676,12 @@ function WidgetChartComponent({
                   compact={false}
                 />
               )}
+              {/* Show live data info when real-time is active */}
+              {widget.enableRealtime && realtimeResult.isConnected && rollingStats && rollingStats.count > 0 && (
+                <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-1 rounded" title={`${rollingStats.count} seconds of data recorded`}>
+                  {rollingStats.count}s recorded
+                </span>
+              )}
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-lg font-bold text-slate-900 dark:text-white">
@@ -877,32 +877,9 @@ function WidgetChartComponent({
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3, ease: "easeOut" }}
             >
-<<<<<<< HEAD
               {renderChart()}
-=======
-              {/* Price Chart */}
-              <motion.div
-                className="h-64"
-                layout
-                transition={{ duration: 0.3, ease: "easeInOut" }}
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={displayData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis
-                      dataKey="date"
-                      stroke="#9CA3AF"
-                      fontSize={12}
-                      tickMargin={5}
-                    />
-                    <YAxis
-                      stroke="#9CA3AF"
-                      fontSize={12}
-                      domain={["dataMin - 10", "dataMax + 10"]}
-                      tickFormatter={(value) => `₹${value}`}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
+            </motion.div>
+          ) : (
 
                     {/* Price Line */}
                     <Line
@@ -947,7 +924,7 @@ function WidgetChartComponent({
 
               {/* Volume Chart - only show if volume data is available */}
               <AnimatePresence>
-                {chartData.some((d: ChartDataPoint) => d.volume !== undefined) && (
+                {displayData.some((d: ChartDataPoint) => d.volume !== undefined && d.volume > 0) && (
                   <motion.div
                     className="h-32"
                     layout
@@ -960,7 +937,7 @@ function WidgetChartComponent({
                       Volume
                     </h4>
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData}>
+                      <BarChart data={displayData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                         <XAxis
                           dataKey="date"
@@ -971,15 +948,18 @@ function WidgetChartComponent({
                         <YAxis
                           stroke="#9CA3AF"
                           fontSize={10}
-                          tickFormatter={(value) =>
-                            `${(value / 1000000).toFixed(1)}M`
-                          }
+                          tickFormatter={(value) => {
+                            if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+                            if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+                            return value.toFixed(2);
+                          }}
                         />
                         <Tooltip
-                          formatter={(value: number) => [
-                            `${(value / 1000000).toFixed(2)}M`,
-                            "Volume",
-                          ]}
+                          formatter={(value: number) => {
+                            if (value >= 1000000) return [`${(value / 1000000).toFixed(2)}M`, "Volume"];
+                            if (value >= 1000) return [`${(value / 1000).toFixed(2)}K`, "Volume"];
+                            return [value.toFixed(4), "Volume"];
+                          }}
                           labelStyle={{ color: "#9CA3AF" }}
                           contentStyle={{
                             backgroundColor: "#1F2937",
@@ -992,7 +972,6 @@ function WidgetChartComponent({
                   </motion.div>
                 )}
               </AnimatePresence>
->>>>>>> 7f0d78f (feat: Implement real-time data handling with WebSocket integration)
             </motion.div>
           ) : (
             <motion.div
