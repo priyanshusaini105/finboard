@@ -88,15 +88,15 @@ export async function transformApiData(
 
     // Create transformer and transform data
     const transformer = new DataTransformer(sourceSchema, apiIdentifier);
-    const transformedResponse = transformer.transform(rawData);
+    const transformedResponse = transformer.transform(rawData as Record<string, unknown>);
 
     console.log(`✨ [Transform Service] Transformation result:`, {
       success: transformedResponse.success,
       hasData: !!transformedResponse.data,
-      rowCount: transformedResponse.data?.rows?.length,
-      columnCount: transformedResponse.data?.columns?.length,
+      rowCount: (transformedResponse.data as FinancialDataset)?.rows?.length,
+      columnCount: (transformedResponse.data as FinancialDataset)?.columns?.length,
       error: transformedResponse.error,
-      columns: transformedResponse.data?.columns?.map(c => ({ key: c.key, label: c.label, type: c.type }))
+      columns: (transformedResponse.data as FinancialDataset)?.columns?.map((c: ColumnDefinition) => ({ key: c.key, label: c.label, type: c.type }))
     });
 
     if (!transformedResponse.success) {
@@ -113,14 +113,14 @@ export async function transformApiData(
     }
 
     console.log(
-      `✅ [Transform Service] Transformation successful: ${transformedResponse.data.rows.length} rows, ${transformedResponse.data.columns.length} columns`
+      `✅ [Transform Service] Transformation successful: ${(transformedResponse.data as FinancialDataset).rows.length} rows, ${(transformedResponse.data as FinancialDataset).columns.length} columns`
     );
 
     return {
       success: true,
       useTransformedData: true,
-      data: transformedResponse.data,
-      columns: transformedResponse.data.columns,
+      data: transformedResponse.data as FinancialDataset,
+      columns: (transformedResponse.data as FinancialDataset).columns,
     };
   } catch (error) {
     console.error('❌ [Transform Service] Error during transformation:', error);

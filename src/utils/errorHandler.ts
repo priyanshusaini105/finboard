@@ -32,6 +32,12 @@ export enum ErrorCategory {
   INVALID_URL = "INVALID_URL",
   MISSING_URL = "MISSING_URL",
 
+  // WebSocket errors
+  WEBSOCKET_CONNECTION_FAILED = "WEBSOCKET_CONNECTION_FAILED",
+  WEBSOCKET_DISCONNECTED = "WEBSOCKET_DISCONNECTED",
+  WEBSOCKET_MESSAGE_ERROR = "WEBSOCKET_MESSAGE_ERROR",
+  WEBSOCKET_SUBSCRIPTION_FAILED = "WEBSOCKET_SUBSCRIPTION_FAILED",
+
   // Unknown
   UNKNOWN = "UNKNOWN",
 }
@@ -136,6 +142,15 @@ function determineRecoveryStrategy(
       return RecoveryStrategy.FAIL; // Auth errors won't fix by retrying
     case ErrorCategory.NOT_FOUND:
       return RecoveryStrategy.FAIL; // 404s won't fix by retrying
+    // WebSocket errors - attempt reconnection with backoff
+    case ErrorCategory.WEBSOCKET_CONNECTION_FAILED:
+    case ErrorCategory.WEBSOCKET_DISCONNECTED:
+    case ErrorCategory.WEBSOCKET_MESSAGE_ERROR:
+      return retryAttempt < 5
+        ? RecoveryStrategy.RETRY_WITH_BACKOFF
+        : RecoveryStrategy.USE_CACHE;
+    case ErrorCategory.WEBSOCKET_SUBSCRIPTION_FAILED:
+      return RecoveryStrategy.RETRY_WITH_BACKOFF;
     default:
       return RecoveryStrategy.RETRY_WITH_BACKOFF;
   }
@@ -152,6 +167,11 @@ function isErrorRetryable(category: ErrorCategory): boolean {
     ErrorCategory.GATEWAY_TIMEOUT,
     ErrorCategory.NETWORK_ERROR,
     ErrorCategory.TIMEOUT,
+    // WebSocket errors are retryable
+    ErrorCategory.WEBSOCKET_CONNECTION_FAILED,
+    ErrorCategory.WEBSOCKET_DISCONNECTED,
+    ErrorCategory.WEBSOCKET_MESSAGE_ERROR,
+    ErrorCategory.WEBSOCKET_SUBSCRIPTION_FAILED,
   ];
   return retryableCategories.includes(category);
 }
@@ -326,6 +346,14 @@ export function formatErrorForDisplay(error: ApiError): string {
       return "Received invalid data from API. The data format might not be supported.";
     case ErrorCategory.PARSING_ERROR:
       return "Failed to parse API response. The response format might not be supported.";
+    case ErrorCategory.WEBSOCKET_CONNECTION_FAILED:
+      return "Failed to connect to real-time data service. Attempting to reconnect...";
+    case ErrorCategory.WEBSOCKET_DISCONNECTED:
+      return "Real-time connection was lost. Attempting to reconnect...";
+    case ErrorCategory.WEBSOCKET_MESSAGE_ERROR:
+      return "Error processing real-time data. Retrying...";
+    case ErrorCategory.WEBSOCKET_SUBSCRIPTION_FAILED:
+      return "Failed to subscribe to real-time updates. Using polling instead.";
     default:
       return error.message || "An unknown error occurred.";
   }
@@ -373,5 +401,68 @@ export function shouldRetry(
     message.includes("NETWORK") ||
     message.includes("503") ||
     message.includes("429")
+  );
+}
+
+/**
+ * Create WebSocket-specific errors
+ */
+export function createWebSocketError(
+  message: string,
+  category: ErrorCategory.WEBSOCKET_CONNECTION_FAILED |
+    ErrorCategory.WEBSOCKET_DISCONNECTED |
+    ErrorCategory.WEBSOCKET_MESSAGE_ERROR |
+    ErrorCategory.WEBSOCKET_SUBSCRIPTION_FAILED,
+  metadata: ErrorMetadata = {}
+): ApiError {
+  return createApiError(message, {
+    ...metadata,
+    context: {
+      ...metadata.context,
+      errorSource: 'websocket',
+    },
+  });
+}
+
+/**
+ * Categorize WebSocket close code
+ */
+export function categorizeWebSocketCloseCode(code: number): ErrorCategory {
+  switch (code) {
+    case 1000: // Normal closure - not an error
+      return ErrorCategory.NETWORK_ERROR;
+    case 1001: // Going away
+      return ErrorCategory.NETWORK_ERROR;
+    case 1002: // Protocol error
+      return ErrorCategory.INVALID_DATA;
+    case 1003: // Unsupported data
+      return ErrorCategory.INVALID_DATA;
+    case 1006: // Abnormal closure
+      return ErrorCategory.WEBSOCKET_DISCONNECTED;
+    case 1008: // Policy violation
+      return ErrorCategory.FORBIDDEN;
+    case 1011: // Server error
+      return ErrorCategory.WEBSOCKET_CONNECTION_FAILED;
+    case 1012: // Service restart
+      return ErrorCategory.SERVICE_UNAVAILABLE;
+    case 1013: // Try again later
+      return ErrorCategory.SERVICE_UNAVAILABLE;
+    default:
+      return ErrorCategory.WEBSOCKET_CONNECTION_FAILED;
+  }
+}
+
+/**
+ * Check if WebSocket error is network-related (should retry)
+ */
+export function isWebSocketNetworkError(error: Error): boolean {
+  const message = error.message || '';
+  return (
+    message.includes('ECONNREFUSED') ||
+    message.includes('ENOTFOUND') ||
+    message.includes('ECONNRESET') ||
+    message.includes('Network') ||
+    message.includes('timeout') ||
+    message.includes('Failed to fetch')
   );
 }

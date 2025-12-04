@@ -1,19 +1,19 @@
 "use client";
 
-import { useState, JSX, useEffect } from "react";
+import { useState, JSX, useEffect, useMemo } from "react";
 import {
   RefreshCw,
   Settings,
-  X,
   Search,
   ChevronLeft,
   ChevronRight,
   Filter,
   XCircle,
+  Activity,
 } from "lucide-react";
 import { Widget } from "@/src/types";
-import { useWidgetData } from "@/src/hooks";
-import { type ApiError, type ColumnDefinition, mapFieldPath } from "@/src/utils";
+import { useWidgetData, useRealtimeData } from "@/src/hooks";
+import { type ApiError, type ColumnDefinition, mapFieldPath, formatForTableView } from "@/src/utils";
 import { useStore } from "@/src/store";
 
 interface WidgetTableProps {
@@ -26,7 +26,6 @@ interface WidgetTableProps {
 export default function WidgetTable({
   widget,
   onConfigure,
-  onDelete,
   hideHeader = false,
 }: WidgetTableProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -55,6 +54,21 @@ export default function WidgetTable({
   const [dateRanges, setDateRanges] = useState<Record<string, { min: number; max: number; currentMin: number; currentMax: number }>>({});
   const [stringSelections, setStringSelections] = useState<Record<string, string[]>>({});
   const itemsPerPage = 6;
+
+  // Setup real-time data connection if enabled
+  const realtimeResult = useRealtimeData(widget, []);
+  
+  // Check if we have real-time data to display
+  const hasRealtimeData = widget.enableRealtime && realtimeResult.isConnected && realtimeResult.realtimeData.length > 0;
+  
+  // Format real-time data for table display
+  const realtimeTableData = useMemo(() => {
+    if (!hasRealtimeData) return null;
+    return formatForTableView(realtimeResult.realtimeData, 100);
+  }, [hasRealtimeData, realtimeResult.realtimeData]);
+
+  // Use real-time data if available, otherwise use API data
+  const displayData = hasRealtimeData && realtimeTableData ? realtimeTableData : data;
 
   const handleTitleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -130,19 +144,30 @@ export default function WidgetTable({
     return String(value);
   };
 
+  useEffect(() => {
+    // Debug logging to trace data flow
+    console.log('=== WidgetTable Debug ===');
+    console.log('1. Widget config:', widget);
+    console.log('2. Query result:', queryResult);
+    console.log('3. widgetData:', widgetData);
+    console.log('4. data (rows):', data);
+    console.log('5. columns:', columns);
+    console.log('6. useTransformedData:', useTransformedData);
+    console.log('========================');
+  }, [widget, queryResult, widgetData, data, columns, useTransformedData]);
+
   // Convert data to array format for table display
   const getTableData = () => {
-    if (!data) return [];
-
-    // Data is already transformed by the Dashboard using transformData()
-    // It should be an array of objects ready for table display
-    if (Array.isArray(data)) {
-      return data;
+    // Prioritize real-time data if available
+    if (displayData && Array.isArray(displayData)) {
+      return displayData;
     }
+    
+    if (!displayData) return [];
 
     // Fallback: if data is not an array, convert single object to array
-    if (typeof data === "object") {
-      return [data];
+    if (typeof displayData === "object") {
+      return [displayData];
     }
 
     return [];
@@ -929,6 +954,12 @@ export default function WidgetTable({
           )}
           {isFromCache && (
             <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" title="Using cached data"></div>
+          )}
+          {hasRealtimeData && (
+            <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded flex items-center gap-1">
+              <Activity className="w-3 h-3 animate-pulse" />
+              LIVE
+            </span>
           )}
           <span className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-1 rounded">
             TABLE

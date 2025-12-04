@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import {
   Line,
   XAxis,
@@ -19,24 +19,10 @@ import {
 import { RefreshCw, Settings, X, TrendingUp, TrendingDown, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Widget } from "@/src/types";
-import { getSymbolFromUrl } from "@/src/utils";
-import { useWidgetData } from "@/src/hooks";
-import { ChartSkeleton } from "@/src/components/ui";
+import { getSymbolFromUrl, formatForChartView, getRollingWindowStats, type ChartDataPoint } from "@/src/utils";
+import { useWidgetData, useRealtimeData } from "@/src/hooks";
+import { ChartSkeleton, WidgetRealtimeIndicator } from "@/src/components";
 import { useStore } from "@/src/store";
-
-// Chart data types
-interface ChartDataPoint {
-  date: string;
-  open?: number;
-  high?: number;
-  low?: number;
-  close?: number;
-  price?: number;
-  volume?: number;
-  dma50?: number | null;
-  dma200?: number | null;
-  [key: string]: unknown;
-}
 
 interface TooltipPayload {
   dataKey: string;
@@ -216,7 +202,7 @@ interface WidgetChartProps {
   hideHeader?: boolean;
 }
 
-export default function WidgetChart({
+function WidgetChartComponent({
   widget,
   onConfigure,
   onDelete,
@@ -229,7 +215,7 @@ export default function WidgetChart({
   const { updateWidgetTitle } = useStore();
 
   // Use TanStack Query for data fetching with caching
-  const { data, isLoading, error, refetch, isFetching } = useWidgetData(widget);
+  const { data, isLoading, error, isFetching, refetch } = useWidgetData(widget);
 
   // Transform API data for chart display using universal adapter
   const chartData = useMemo(() => {
@@ -238,26 +224,51 @@ export default function WidgetChart({
     try {
       // Data is already transformed by the Dashboard using transformData()
       // So we can use it directly
-      return Array.isArray(data.data) ? (data.data as ChartDataPoint[]) : [];
+      const dataArray = Array.isArray(data.data) ? (data.data as ChartDataPoint[]) : [];
+      return dataArray.map(point => ({
+        ...point,
+        fullDate: point.fullDate || point.date // Ensure fullDate is set
+      }));
     } catch (error) {
       console.error("Error using chart data:", error);
       return [];
     }
   }, [data?.data]);
 
+  // Setup real-time data connection
+  const realtimeResult = useRealtimeData(widget, chartData);
+
+  // Merge polling data with real-time data (prefer real-time if connected)
+  // Format data for chart display with proper time labels
+  const displayData = useMemo(() => {
+    if (realtimeResult.isConnected && realtimeResult.realtimeData.length > 0) {
+      // Format real-time data for chart view - show all recorded data (up to 1000 points)
+      return formatForChartView(realtimeResult.realtimeData, 1000);
+    }
+    return chartData;
+  }, [chartData, realtimeResult.isConnected, realtimeResult.realtimeData]);
+
+  // Get statistics for real-time data
+  const rollingStats = useMemo(() => {
+    if (realtimeResult.isConnected && realtimeResult.realtimeData.length > 0) {
+      return getRollingWindowStats(realtimeResult.realtimeData);
+    }
+    return null;
+  }, [realtimeResult.isConnected, realtimeResult.realtimeData]);
+
   // Detect available fields in the data
   const availableFields = useMemo(() => {
-    if (chartData.length === 0) return [];
+    if (displayData.length === 0) return [];
     const fields = new Set<string>();
-    chartData.forEach(point => {
+    displayData.forEach(point => {
       Object.keys(point).forEach(key => {
-        if (key !== 'date' && typeof point[key] === 'number') {
+        if (key !== 'date' && typeof (point as unknown as Record<string, unknown>)[key] === 'number') {
           fields.add(key);
         }
       });
     });
     return Array.from(fields);
-  }, [chartData]);
+  }, [displayData]);
 
   // Define available chart types based on data
   const chartOptions = useMemo((): ChartOption[] => {
@@ -375,20 +386,20 @@ export default function WidgetChart({
     }
   }, [chartOptions, availableFields, selectedChartType]);
 
-  // Calculate price change
+  // Calculate price change from display data (comparing first and last points)
   const priceChange = useMemo(() => {
-    if (chartData.length < 2) return { change: 0, percentage: 0 };
+    if (displayData.length < 2) return { change: 0, percentage: 0 };
 
-    const latestPrice = chartData[chartData.length - 1]?.close || chartData[chartData.length - 1]?.price || 0;
-    const previousPrice = chartData[chartData.length - 2]?.close || chartData[chartData.length - 2]?.price || 0;
-    const change = latestPrice - previousPrice;
-    const percentage = previousPrice ? (change / previousPrice) * 100 : 0;
+    const latestPrice = displayData[displayData.length - 1]?.price || 0;
+    const firstPrice = displayData[0]?.price || latestPrice;
+    const change = latestPrice - firstPrice;
+    const percentage = firstPrice ? (change / firstPrice) * 100 : 0;
 
     return { change, percentage };
-  }, [chartData]);
+  }, [displayData]);
 
   const isPositive = priceChange.change >= 0;
-  const currentPrice = chartData[chartData.length - 1]?.close || chartData[chartData.length - 1]?.price || 0;
+  const currentPrice = displayData[displayData.length - 1]?.close || displayData[displayData.length - 1]?.price || 0;
 
   // Extract stock symbol from API URL
   const stockSymbol = useMemo(() => {
@@ -398,20 +409,20 @@ export default function WidgetChart({
     return "STOCK";
   }, [widget.apiUrl]);
 
-  const handleTitleDoubleClick = (e: React.MouseEvent) => {
+  const handleTitleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setIsEditingTitle(true);
     setEditingTitle(widget.title);
-  };
+  }, [widget.title]);
 
-  const handleTitleSave = () => {
+  const handleTitleSave = useCallback(() => {
     if (editingTitle.trim() && editingTitle !== widget.title) {
       updateWidgetTitle(widget.id, editingTitle.trim());
     }
     setIsEditingTitle(false);
-  };
+  }, [editingTitle, widget.id, widget.title, updateWidgetTitle]);
 
-  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+  const handleTitleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.stopPropagation();
       handleTitleSave();
@@ -420,7 +431,7 @@ export default function WidgetChart({
       setEditingTitle(widget.title);
       setIsEditingTitle(false);
     }
-  };
+  }, [widget.title, handleTitleSave]);
 
   // Render chart based on selected type
   const renderChart = () => {
@@ -430,7 +441,7 @@ export default function WidgetChart({
       case 'candlestick':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
+            <ComposedChart data={displayData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
               <YAxis stroke="#9CA3AF" fontSize={12} domain={['auto', 'auto']} tickFormatter={(v) => `₹${v}`} />
@@ -454,7 +465,7 @@ export default function WidgetChart({
       case 'ohlc':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
+            <ComposedChart data={displayData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
               <YAxis stroke="#9CA3AF" fontSize={12} domain={['auto', 'auto']} tickFormatter={(v) => `₹${v}`} />
@@ -479,7 +490,7 @@ export default function WidgetChart({
         const priceKey = availableFields.includes('close') ? 'close' : 'price';
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
+            <ComposedChart data={displayData}>
               <defs>
                 <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>
@@ -492,8 +503,8 @@ export default function WidgetChart({
               <Tooltip content={<CustomTooltip />} />
               <Legend />
               <Area type="monotone" dataKey={priceKey} stroke="#3B82F6" fillOpacity={1} fill="url(#colorPrice)" name="Price" />
-              {chartData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
-              {chartData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
+              {displayData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
+              {displayData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
             </ComposedChart>
           </ResponsiveContainer>
         );
@@ -501,7 +512,7 @@ export default function WidgetChart({
       case 'bar':
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
+            <BarChart data={displayData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
               <YAxis stroke="#9CA3AF" fontSize={12} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
@@ -522,7 +533,7 @@ export default function WidgetChart({
               <YAxis dataKey={yField} stroke="#9CA3AF" fontSize={12} name={yField} />
               <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
               <Legend />
-              <Scatter name={`${xField} vs ${yField}`} data={chartData} fill="#3B82F6" />
+              <Scatter name={`${xField} vs ${yField}`} data={displayData} fill="#3B82F6" />
             </ScatterChart>
           </ResponsiveContainer>
         );
@@ -531,7 +542,7 @@ export default function WidgetChart({
         const lineFields = availableFields.filter(f => f !== 'volume').slice(0, 4);
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
+            <ComposedChart data={displayData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
               <YAxis stroke="#9CA3AF" fontSize={12} />
@@ -551,7 +562,7 @@ export default function WidgetChart({
           <div className="space-y-4">
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData}>
+                <ComposedChart data={displayData}>
                   {selectedChartType === 'area-volume' && (
                     <defs>
                       <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
@@ -570,15 +581,15 @@ export default function WidgetChart({
                   ) : (
                     <Line type="monotone" dataKey={mainKey} stroke="#3B82F6" strokeWidth={2} dot={false} name="Price" />
                   )}
-                  {chartData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
-                  {chartData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
+                  {displayData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
+                  {displayData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
             <div className="h-32">
               <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Volume</h4>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
+                <BarChart data={displayData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis dataKey="date" stroke="#9CA3AF" fontSize={10} />
                   <YAxis stroke="#9CA3AF" fontSize={10} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}M`} />
@@ -595,15 +606,15 @@ export default function WidgetChart({
         const defaultKey = availableFields.includes('close') ? 'close' : availableFields.includes('price') ? 'price' : availableFields[0];
         return (
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData}>
+            <ComposedChart data={displayData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
               <YAxis stroke="#9CA3AF" fontSize={12} domain={['dataMin - 10', 'dataMax + 10']} tickFormatter={(v) => `₹${v}`} />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
               <Line type="monotone" dataKey={defaultKey} stroke="#3B82F6" strokeWidth={2} dot={false} name="Price" />
-              {chartData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
-              {chartData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
+              {displayData.some(d => d.dma50) && <Line type="monotone" dataKey="dma50" stroke="#F59E0B" strokeWidth={1} dot={false} name="50 DMA" strokeDasharray="5 5" />}
+              {displayData.some(d => d.dma200) && <Line type="monotone" dataKey="dma200" stroke="#EF4444" strokeWidth={1} dot={false} name="200 DMA" strokeDasharray="5 5" />}
             </ComposedChart>
           </ResponsiveContainer>
         );
@@ -657,6 +668,22 @@ export default function WidgetChart({
               <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded font-mono">
                 {stockSymbol}
               </span>
+              {/* Real-time indicator */}
+              {widget.enableRealtime && (
+                <WidgetRealtimeIndicator
+                  isConnected={realtimeResult.isConnected}
+                  isError={realtimeResult.isError}
+                  provider={widget.realtimeProvider || 'finnhub'}
+                  lastUpdateTime={realtimeResult.lastUpdateTime}
+                  compact={false}
+                />
+              )}
+              {/* Show live data info when real-time is active */}
+              {widget.enableRealtime && realtimeResult.isConnected && rollingStats && rollingStats.count > 0 && (
+                <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-1 rounded" title={`${rollingStats.count} seconds of data recorded`}>
+                  {rollingStats.count}s recorded
+                </span>
+              )}
             </div>
             <div className="flex items-center space-x-2">
               <span className="text-lg font-bold text-slate-900 dark:text-white">
@@ -842,7 +869,7 @@ export default function WidgetChart({
             >
               <ChartSkeleton />
             </motion.div>
-          ) : chartData.length > 0 ? (
+          ) : displayData.length > 0 ? (
             <motion.div
               key="chart"
               className={selectedChartType.includes('volume') ? 'space-y-0' : 'h-80'}
@@ -871,3 +898,16 @@ export default function WidgetChart({
     </motion.div>
   );
 }
+
+const WidgetChart = React.memo(WidgetChartComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.widget.id === nextProps.widget.id &&
+    prevProps.widget.title === nextProps.widget.title &&
+    prevProps.widget.enableRealtime === nextProps.widget.enableRealtime &&
+    prevProps.hideHeader === nextProps.hideHeader
+  );
+});
+
+WidgetChart.displayName = 'WidgetChart';
+
+export default WidgetChart;

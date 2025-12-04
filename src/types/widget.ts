@@ -15,6 +15,12 @@ export interface Widget {
   height: number; // Height in grid units (1 unit = 16px)
   selectedFields?: string[];
   headers?: Record<string, string>;
+  // Real-time/WebSocket support
+  enableRealtime?: boolean; // Enable real-time data via WebSocket
+  realtimeProvider?: 'finnhub' | 'custom'; // WebSocket provider
+  realtimeSymbol?: string; // Symbol/identifier for real-time subscription
+  websocketUrl?: string; // WebSocket URL for real-time connection
+  websocketSymbols?: string[]; // Multiple symbols for WebSocket subscription
 }
 
 export enum WidgetType {
@@ -25,11 +31,16 @@ export enum WidgetType {
 
 export interface WidgetConfig {
   name: string;
-  apiUrl: string;
+  apiUrl?: string; // Optional when using WebSocket only
   refreshInterval: number;
   displayMode: "card" | "table" | "chart";
   selectedFields: string[];
   headers?: Record<string, string>;
+  enableRealtime?: boolean;
+  realtimeProvider?: 'finnhub' | 'custom';
+  realtimeSymbol?: string;
+  websocketUrl?: string; // WebSocket URL for real-time connection
+  websocketSymbols?: string[]; // Multiple symbols for WebSocket subscription
 }
 
 export interface APIField {

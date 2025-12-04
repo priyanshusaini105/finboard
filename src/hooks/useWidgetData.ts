@@ -400,6 +400,17 @@ export const useWidgetData = (
       const retryAttempt = (meta?.retry ?? 0) as number;
 
       try {
+        // Skip API call if real-time is enabled (use only WebSocket)
+        if (widget.enableRealtime) {
+          console.log(`⏭️ [useWidgetData] Skipping API call for ${widget.title} - using WebSocket only`);
+          return {
+            data: [],
+            originalData: {},
+            fromCache: false,
+            useTransformedData: false,
+          };
+        }
+
         return await fetchWidgetData(widget, { retryAttempt });
       } catch (error) {
         const apiError = error as ApiError;
@@ -441,7 +452,7 @@ export const useWidgetData = (
         throw apiError;
       }
     },
-    enabled: !!widget.apiUrl,
+    enabled: !!widget.apiUrl || widget.enableRealtime,
     staleTime: widget.refreshInterval
       ? widget.refreshInterval * 1000
       : 5 * 60 * 1000,
