@@ -20,7 +20,12 @@ export default function DashboardHeader({
   widgetCount,
 }: DashboardHeaderProps) {
   const { theme } = useTheme();
-  const { setTheme, setLayoutMode, setGlobalRefreshInterval, loadWidgetsFromStorage } = useStore();
+  const {
+    setTheme,
+    setLayoutMode,
+    setGlobalRefreshInterval,
+    loadWidgetsFromStorage,
+  } = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
@@ -66,7 +71,9 @@ export default function DashboardHeader({
       setTimeout(() => setImportSuccess(null), 3000);
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : "Failed to import configuration";
+        error instanceof Error
+          ? error.message
+          : "Failed to import configuration";
       setImportError(errorMessage);
 
       // Clear error message after 5 seconds
@@ -121,7 +128,14 @@ export default function DashboardHeader({
         </div>
 
         <div className="flex items-center gap-1 md:gap-2 flex-wrap justify-end w-full md:w-auto">
-          <ThemeToggle />
+          {/* Add Widget Button */}
+          <button
+            onClick={onAddWidget}
+            className="bg-emerald-500 hover:bg-emerald-600 text-white px-2 md:px-4 py-2 rounded-lg flex items-center gap-1 md:gap-2 transition-colors text-sm md:text-base whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden xs:inline">Add Widget</span>
+          </button>
 
           {/* Export Button */}
           <button
@@ -162,15 +176,7 @@ export default function DashboardHeader({
             className="hidden"
             aria-label="Import dashboard configuration file"
           />
-
-          {/* Add Widget Button */}
-          <button
-            onClick={onAddWidget}
-            className="bg-emerald-500 hover:bg-emerald-600 text-white px-2 md:px-4 py-2 rounded-lg flex items-center gap-1 md:gap-2 transition-colors text-sm md:text-base whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden xs:inline">Add Widget</span>
-          </button>
+          <ThemeToggle />
         </div>
       </div>
 
@@ -182,7 +188,8 @@ export default function DashboardHeader({
               Reset Dashboard?
             </h2>
             <p className="text-slate-600 dark:text-slate-400 mb-6">
-              This will remove all widgets and reset configuration to default settings. This action cannot be undone.
+              This will remove all widgets and reset configuration to default
+              settings. This action cannot be undone.
             </p>
             <div className="border-t border-slate-200 dark:border-slate-700 mb-6"></div>
             <div className="flex justify-end space-x-3">
