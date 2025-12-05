@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { WidgetType, WidgetConfig } from "@/src/types";
 import { useStore } from "@/src/store";
 import { DashboardHeader, AddWidgetModal, AddWidgetCard, WidgetGrid } from ".";
@@ -24,27 +24,8 @@ export default function Dashboard() {
     addWidget,
     updateWidget,
     deleteWidget,
-    loadWidgetsFromStorage,
     updateWidgetLayout,
   } = useStore();
-
-  // Load widgets from localStorage on mount
-  useEffect(() => {
-    const savedWidgets = localStorage.getItem("dashboard-widgets");
-    if (savedWidgets) {
-      try {
-        const parsedWidgets = JSON.parse(savedWidgets);
-        loadWidgetsFromStorage(parsedWidgets);
-      } catch (error) {
-        console.error("Failed to load saved widgets:", error);
-      }
-    }
-  }, [loadWidgetsFromStorage]);
-
-  // Save widgets to localStorage whenever widgets change
-  useEffect(() => {
-    localStorage.setItem("dashboard-widgets", JSON.stringify(widgets));
-  }, [widgets]);
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
 

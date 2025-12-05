@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { APIField } from "@/src/types";
+import { addSignatureHeaders, prepareProxyUrl, prepareProxyHeaders } from "@/src/utils";
 
 export function useApiTesting() {
   const [isTestingApi, setIsTestingApi] = useState(false);
@@ -16,36 +17,47 @@ export function useApiTesting() {
     setIsTestingApi(true);
 
     try {
-      // Check if we need to use proxy for external APIs
-      const needsProxy =
-        apiUrl.includes("finnhub.io") || 
-        apiUrl.includes("alphavantage.co") ||
-        apiUrl.includes("indianapi.in");
-
-      let response;
-
-      if (needsProxy) {
-        // Use proxy for external APIs that have CORS issues
-        const proxyUrl = `/api/proxy?url=${encodeURIComponent(apiUrl)}`;
-        console.log('[API Test] Using proxy with headers:', headers);
-        response = await fetch(proxyUrl, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            ...headers,
-          },
-        });
-      } else {
-        // Direct request for APIs without CORS issues
-        console.log('[API Test] Direct request with headers:', headers);
-        response = await fetch(apiUrl, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            ...headers,
-          },
-        });
+      // Prepare URL and extract encrypted params
+      const urlInfo = prepareProxyUrl(apiUrl);
+      const cleanUrl = urlInfo.url;
+      const encryptedParams = urlInfo.encryptedParams;
+      
+      // Always use proxy for API requests to handle CORS, encryption, and security
+      const proxyUrl = `/api/proxy?url=${encodeURIComponent(cleanUrl)}`;
+      console.log('[API Test] Using proxy for:', cleanUrl);
+      console.log('[API Test] Encrypted params:', encryptedParams.length);
+      console.log('[API Test] Headers:', headers);
+      
+      // Prepare headers with encrypted values (use temp ID for API testing)
+      const proxyHeaders = prepareProxyHeaders('api-test', headers);
+      
+      // Add encrypted params to headers if present
+      let requestHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...proxyHeaders,
+      };
+      
+      if (encryptedParams.length > 0) {
+        requestHeaders["X-Encrypted-Params"] = JSON.stringify(encryptedParams);
+        console.log('[API Test] Added encrypted params to headers');
       }
+      
+      // Add HMAC signature headers to prevent replay attacks
+      try {
+        requestHeaders = await addSignatureHeaders(
+          "GET",
+          proxyUrl,
+          requestHeaders
+        );
+        console.log('[API Test] Added signature headers');
+      } catch (error) {
+        console.warn('[API Test] Failed to add signature, continuing without:', error);
+      }
+      
+      const response = await fetch(proxyUrl, {
+        method: "GET",
+        headers: requestHeaders,
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

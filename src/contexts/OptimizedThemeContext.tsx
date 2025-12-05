@@ -3,9 +3,10 @@
 import {
   createContext,
   useContext,
-  useState,
+  useEffect,
   ReactNode,
 } from "react";
+import { useStore } from "@/src/store";
 
 type Theme = "light" | "dark";
 
@@ -23,44 +24,25 @@ interface ThemeProviderProps {
 }
 
 export function OptimizedThemeProvider({ children }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    // Only initialize with saved theme or system preference on client
-    if (typeof window === "undefined") {
-      return "dark";
-    }
-    
-    const savedTheme = localStorage.getItem("finboard-theme") as Theme;
-    if (savedTheme && (savedTheme === "light" || savedTheme === "dark")) {
-      return savedTheme;
-    }
-    // Check system preference
-    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
-    return systemTheme;
-  });
+  // Use Zustand store for theme management
+  const theme = useStore((state) => state.theme);
+  const setThemeInStore = useStore((state) => state.setTheme);
 
-  // Apply theme to document
-  const applyTheme = (newTheme: Theme) => {
+  // Apply theme to document whenever it changes
+  useEffect(() => {
     if (typeof window === "undefined") return;
     
     const root = window.document.documentElement;
     root.classList.remove("light", "dark");
-    root.classList.add(newTheme);
-    localStorage.setItem("finboard-theme", newTheme);
-  };
-
-  // Apply theme whenever it changes
-  if (theme) {
-    applyTheme(theme);
-  }
+    root.classList.add(theme);
+  }, [theme]);
 
   const toggleTheme = () => {
-    setThemeState((prev) => (prev === "light" ? "dark" : "light"));
+    setThemeInStore(theme === "light" ? "dark" : "light");
   };
 
   const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
+    setThemeInStore(newTheme);
   };
 
   // Return a stable structure to prevent hydration mismatch

@@ -2,6 +2,11 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { Widget, WidgetConfig, WidgetType } from "@/src/types";
 import { ChartDataPoint } from "@/src/utils";
+import {
+  encryptHeaderValues,
+  encryptUrlParams,
+  removeEncryptedSecret,
+} from "@/src/utils/encryptionMiddleware";
 
 interface DashboardConfig {
   theme?: "dark" | "light";
@@ -43,8 +48,8 @@ interface DashboardState {
   setGlobalRefreshInterval: (interval: number) => void;
   
   // Widget actions
-  addWidget: (config: WidgetConfig, id: string) => void;
-  updateWidget: (id: string, config: WidgetConfig) => void;
+  addWidget: (config: WidgetConfig, id: string) => Promise<void>;
+  updateWidget: (id: string, config: WidgetConfig) => Promise<void>;
   updateWidgetTitle: (id: string, title: string) => void;
   deleteWidget: (id: string) => void;
   reorderWidgets: (oldIndex: number, newIndex: number) => void;
@@ -54,7 +59,7 @@ interface DashboardState {
   updateWidgetHeight: (id: string, height: number) => void;
   
   // Template actions
-  loadDashboardFromTemplate: (config: DashboardConfig, widgetsData: Widget[]) => void;
+  loadDashboardFromTemplate: (config: DashboardConfig, widgetsData: Widget[]) => Promise<void>;
 
   // Realtime actions
   initRealtimeWidget: (widgetId: string, provider: string) => void;
@@ -64,39 +69,6 @@ interface DashboardState {
   clearRealtimeState: (widgetId: string) => void;
 }
 
-const DASHBOARD_CONFIG_KEY = "finboard_dashboard_config";
-const WIDGETS_KEY = "finboard_widgets";
-
-// Load initial data from localStorage
-const loadDashboardConfig = (): Partial<Pick<DashboardState, "theme" | "layoutMode" | "refreshInterval">> => {
-  try {
-    if (typeof window === "undefined") return {};
-    const saved = window.localStorage.getItem(DASHBOARD_CONFIG_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (error) {
-    console.error("Error loading dashboard config from localStorage:", error);
-  }
-  return {};
-};
-
-const loadWidgets = (): Widget[] => {
-  try {
-    if (typeof window === "undefined") return [];
-    const saved = window.localStorage.getItem(WIDGETS_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (error) {
-    console.error("Error loading widgets from localStorage:", error);
-  }
-  return [];
-};
-
-const savedConfig = loadDashboardConfig();
-const savedWidgets = loadWidgets();
-
 export const useStore = create<DashboardState>()(
   persist(
     (set) => ({
@@ -104,10 +76,10 @@ export const useStore = create<DashboardState>()(
       isAddModalOpen: false,
       editingWidget: null,
       expandedWidget: null,
-      theme: (savedConfig.theme as "dark" | "light") || "dark",
-      layoutMode: (savedConfig.layoutMode as "grid" | "list") || "grid",
-      refreshInterval: savedConfig.refreshInterval || 30,
-      widgets: savedWidgets,
+      theme: "dark",
+      layoutMode: "grid",
+      refreshInterval: 30,
+      widgets: [],
       realtimeStates: {},
 
       // Dashboard actions
@@ -147,7 +119,16 @@ export const useStore = create<DashboardState>()(
         set({ refreshInterval }),
 
       // Widget actions
-      addWidget: (config: WidgetConfig, id: string) =>
+      addWidget: async (config: WidgetConfig, id: string) => {
+        // Encrypt sensitive values in headers and URL
+        const encryptedHeaders = config.headers 
+          ? await encryptHeaderValues(config.headers)
+          : {};
+        
+        const encryptedApiUrl = config.apiUrl
+          ? await encryptUrlParams(config.apiUrl)
+          : undefined;
+
         set((state) => {
           // Calculate y position for new widget (stack at bottom)
           const maxY = state.widgets.reduce((max, w) => {
@@ -174,10 +155,10 @@ export const useStore = create<DashboardState>()(
                 : config.displayMode === "table"
                 ? WidgetType.TABLE
                 : WidgetType.CHART,
-            apiUrl: config.apiUrl, // Only set if not using WebSocket
+            apiUrl: encryptedApiUrl, // Encrypted URL params
             refreshInterval: config.refreshInterval,
             selectedFields: config.selectedFields,
-            headers: config.headers,
+            headers: encryptedHeaders, // Encrypted header values
             x: 0, // Position at start
             y: maxY, // Position at bottom
             w: defaultWidth, // Default width in columns
@@ -190,9 +171,19 @@ export const useStore = create<DashboardState>()(
             websocketSymbols: config.websocketSymbols,
           };
           return { widgets: [...state.widgets, newWidget] };
-        }),
+        });
+      },
 
-      updateWidget: (id: string, config: WidgetConfig) =>
+      updateWidget: async (id: string, config: WidgetConfig) => {
+        // Encrypt sensitive values in headers and URL
+        const encryptedHeaders = config.headers 
+          ? await encryptHeaderValues(config.headers)
+          : {};
+        
+        const encryptedApiUrl = config.apiUrl
+          ? await encryptUrlParams(config.apiUrl)
+          : undefined;
+
         set((state) => ({
           widgets: state.widgets.map((widget) =>
             widget.id === id
@@ -205,10 +196,10 @@ export const useStore = create<DashboardState>()(
                       : config.displayMode === "table"
                       ? WidgetType.TABLE
                       : WidgetType.CHART,
-                  apiUrl: config.apiUrl,
+                  apiUrl: encryptedApiUrl,
                   refreshInterval: config.refreshInterval,
                   selectedFields: config.selectedFields,
-                  headers: config.headers,
+                  headers: encryptedHeaders,
                   error: undefined,
                   enableRealtime: config.enableRealtime || false,
                   realtimeProvider: config.realtimeProvider,
@@ -218,7 +209,8 @@ export const useStore = create<DashboardState>()(
                 }
               : widget
           ),
-        })),
+        }));
+      },
 
       updateWidgetTitle: (id: string, title: string) =>
         set((state) => ({
@@ -228,12 +220,17 @@ export const useStore = create<DashboardState>()(
         })),
 
       deleteWidget: (id: string) =>
-        set((state) => ({
-          widgets: state.widgets.filter((widget) => widget.id !== id),
-          realtimeStates: Object.fromEntries(
-            Object.entries(state.realtimeStates).filter(([key]) => key !== id)
-          ),
-        })),
+        set((state) => {
+          // Clean up encrypted secrets for this widget
+          removeEncryptedSecret(id);
+          
+          return {
+            widgets: state.widgets.filter((widget) => widget.id !== id),
+            realtimeStates: Object.fromEntries(
+              Object.entries(state.realtimeStates).filter(([key]) => key !== id)
+            ),
+          };
+        }),
 
       reorderWidgets: (oldIndex: number, newIndex: number) =>
         set((state) => {
@@ -257,16 +254,36 @@ export const useStore = create<DashboardState>()(
         })),
 
       // Template actions
-      loadDashboardFromTemplate: (config: DashboardConfig, widgetsData: Widget[]) =>
+      loadDashboardFromTemplate: async (config: DashboardConfig, widgetsData: Widget[]) => {
+        // Encrypt all widgets' sensitive data
+        const encryptedWidgets = await Promise.all(
+          widgetsData.map(async (widget) => {
+            // Encrypt headers
+            const encryptedHeaders = widget.headers
+              ? await encryptHeaderValues(widget.headers)
+              : {};
+            
+            // Encrypt URL params
+            const encryptedApiUrl = widget.apiUrl
+              ? await encryptUrlParams(widget.apiUrl)
+              : widget.apiUrl;
+            
+            return {
+              ...widget,
+              headers: encryptedHeaders,
+              apiUrl: encryptedApiUrl,
+              isLoading: true,
+            };
+          })
+        );
+        
         set({
           theme: config.theme || "dark",
           layoutMode: config.layoutMode || "grid",
           refreshInterval: config.refreshInterval || 30,
-          widgets: widgetsData.map((widget) => ({
-            ...widget,
-            isLoading: true,
-          })),
-        }),
+          widgets: encryptedWidgets,
+        });
+      },
 
       // Realtime actions
       initRealtimeWidget: (widgetId: string, provider: string) =>
@@ -326,11 +343,12 @@ export const useStore = create<DashboardState>()(
         }),
     }),
     {
-      name: "finboard-storage",
+      name: "finboard-v1-dashboard-storage",
       partialize: (state) => ({
         theme: state.theme,
         layoutMode: state.layoutMode,
         refreshInterval: state.refreshInterval,
+        // Store widgets with encrypted sensitive values in-place
         widgets: state.widgets,
       }),
     }

@@ -4,7 +4,19 @@ import { useState, useEffect, useCallback } from "react";
 import { X, ChevronRight, ChevronLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { WidgetConfig, Widget } from "@/src/types";
-import { transformApiData, shouldTransformApi, type ColumnDefinition, parseUrlParams, reconstructUrl, type UrlParam } from "@/src/utils";
+import { 
+  transformApiData, 
+  shouldTransformApi, 
+  type ColumnDefinition, 
+  parseUrlParams, 
+  reconstructUrl, 
+  type UrlParam, 
+  encryptWidgetSecrets,
+  prepareHeadersForDisplay,
+  prepareUrlForDisplay,
+  cleanHeadersBeforeSave,
+  isEncryptedValue,
+} from "@/src/utils";
 import { useApiTesting } from "@/src/hooks";
 import { HeaderInput, DisplaySettings, FieldSelector, UrlParamsInput } from ".";
 
@@ -121,8 +133,14 @@ export default function AddWidgetModal({
       setShowRealtimePanel(false);
     } else if (editingWidget) {
       setWidgetName(editingWidget.title);
-      setApiUrl(editingWidget.apiUrl || "");
-      const { params } = parseUrlParams(editingWidget.apiUrl || "");
+      
+      // Prepare URL for display (show placeholders for encrypted params)
+      const displayUrl = editingWidget.apiUrl 
+        ? prepareUrlForDisplay(editingWidget.apiUrl)
+        : "";
+      setApiUrl(displayUrl);
+      
+      const { params } = parseUrlParams(displayUrl);
       setUrlParams(params);
       setRefreshInterval(editingWidget.refreshInterval);
       setDisplayMode(
@@ -133,7 +151,13 @@ export default function AddWidgetModal({
           : "chart"
       );
       setSelectedFields(editingWidget.selectedFields || []);
-      setHeaders(editingWidget.headers || {});
+      
+      // Prepare headers for display (show placeholders for encrypted values)
+      const displayHeaders = editingWidget.headers 
+        ? prepareHeadersForDisplay(editingWidget.headers)
+        : {};
+      setHeaders(displayHeaders);
+      
       setCurrentPage(1);
       setEnableRealtime(editingWidget.enableRealtime || false);
       setWebsocketUrl(editingWidget.websocketUrl || "");
@@ -285,29 +309,31 @@ export default function AddWidgetModal({
       // and update apiFields with transformed column definitions
       if (shouldTransformApi(finalUrl)) {
         try {
-          // Fetch the data again to transform it
-          const needsProxy =
-            finalUrl.includes("finnhub.io") || finalUrl.includes("alphavantage.co");
+          // Always use proxy for API requests to handle CORS, encryption, and security
+          const proxyUrl = `/api/proxy?url=${encodeURIComponent(finalUrl)}`;
+          console.log('[Transform] Using proxy for:', finalUrl);
           
-          let response;
-          if (needsProxy) {
-            const proxyUrl = `/api/proxy?url=${encodeURIComponent(finalUrl)}`;
-            response = await fetch(proxyUrl, {
-              method: "GET",
-              headers: {
-                "Content-Type": "application/json",
-                ...headers,
-              },
-            });
-          } else {
-            response = await fetch(finalUrl, {
-              method: "GET",
-              headers: {
-                "Content-Type": "application/json",
-                ...headers,
-              },
-            });
+          // Add HMAC signature headers
+          let requestHeaders: Record<string, string> = {
+            "Content-Type": "application/json",
+            ...headers,
+          };
+          
+          try {
+            const { addSignatureHeaders } = await import("@/src/utils");
+            requestHeaders = await addSignatureHeaders(
+              "GET",
+              proxyUrl,
+              requestHeaders
+            );
+          } catch (error) {
+            console.warn('[Transform] Failed to add signature:', error);
           }
+          
+          const response = await fetch(proxyUrl, {
+            method: "GET",
+            headers: requestHeaders,
+          });
 
           if (response.ok) {
             const rawData = await response.json();
@@ -334,7 +360,7 @@ export default function AddWidgetModal({
     }
   }, [enableRealtime, websocketUrl, selectedSymbols, widgetName, apiUrl, headers, performApiTest, setApiFields]);
 
-  const handleAddWidget = useCallback(() => {
+  const handleAddWidget = useCallback(async () => {
     if (!widgetName) return;
     
     // For WebSocket widgets, we don't need API URL
@@ -345,13 +371,35 @@ export default function AddWidgetModal({
       if (!apiUrl || selectedFields.length === 0) return;
     }
 
+    // Encrypt API secrets if present (for proxy usage)
+    // This generates a temporary widget ID for encryption
+    const tempWidgetId = editingWidget?.id || `widget-${Date.now()}`;
+    
+    // Clean headers before saving (remove empty values)
+    const cleanedHeaders = editingWidget 
+      ? cleanHeadersBeforeSave(headers, editingWidget.headers || {})
+      : headers;
+    
+    // Use the apiUrl as-is (encrypted values will remain encrypted)
+    const finalApiUrl = apiUrl;
+    
+    try {
+      // Encrypt secrets in the background (they'll be stored in localStorage)
+      if (!enableRealtime && (finalApiUrl || cleanedHeaders)) {
+        await encryptWidgetSecrets(tempWidgetId, cleanedHeaders, finalApiUrl);
+      }
+    } catch (error) {
+      console.error("Failed to encrypt widget secrets:", error);
+      // Continue anyway - encryption is optional for local/public APIs
+    }
+
     const config: WidgetConfig = {
       name: widgetName,
-      ...(apiUrl && !enableRealtime && { apiUrl }), // Only include apiUrl if not using WebSocket
+      ...(finalApiUrl && !enableRealtime && { apiUrl: finalApiUrl }), // Only include apiUrl if not using WebSocket
       refreshInterval,
       displayMode,
       selectedFields: enableRealtime ? ["symbol", "price", "volume", "time"] : selectedFields,
-      headers: Object.keys(headers).length > 0 ? headers : undefined,
+      headers: Object.keys(cleanedHeaders).length > 0 ? cleanedHeaders : undefined,
       enableRealtime,
       realtimeProvider: enableRealtime ? 'finnhub' : undefined,
       realtimeSymbol: enableRealtime ? selectedSymbols[0] : undefined,
@@ -361,7 +409,7 @@ export default function AddWidgetModal({
 
     onAddWidget(config);
     onClose();
-  }, [widgetName, enableRealtime, websocketUrl, selectedSymbols, apiUrl, selectedFields, refreshInterval, displayMode, headers, onAddWidget, onClose]);
+  }, [widgetName, enableRealtime, websocketUrl, selectedSymbols, apiUrl, selectedFields, refreshInterval, displayMode, headers, onAddWidget, onClose, editingWidget]);
 
   return (
     <AnimatePresence>

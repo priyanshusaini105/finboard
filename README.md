@@ -4,7 +4,7 @@
 
 ## 🎬 Live Demo
 
-[![Demo Video](https://raw.githubusercontent.com/priyanshusaini105/finboard/main/public/thumnail-image.png)](https://player.cloudinary.com/embed/?cloud_name=dna0hel5p&public_id=finboard_qumd0k&profile=cld-default)
+[![Demo Video](https://raw.githubusercontent.com/priyanshusaini105/finboard/main/public/img/thumnail-image.png)](https://player.cloudinary.com/embed/?cloud_name=dna0hel5p&public_id=finboard_qumd0k&profile=cld-default)
 
 
 
@@ -66,6 +66,16 @@ Choose from multiple widget styles to match your analysis approach:
 - **Page Refresh Safe**: Close the browser, come back later - everything is exactly as you left it
 - **Export & Share**: Download your dashboard as JSON and share it with colleagues
 - **Template Library**: Load pre-built templates to jumpstart your setup
+
+## 🔒 Security Architecture
+
+FinBoard implements **client-side encryption** for API keys using RSA-OAEP and **request signing** with HMAC-SHA256 to prevent replay attacks. All sensitive data is encrypted before leaving your browser.
+
+![Security Architecture](https://raw.githubusercontent.com/priyanshusaini105/finboard/main/public/img/security-architecture.png)
+
+📖 **[Learn More →](./SECURITY.md)** for detailed security implementation, encryption mechanisms, and architecture overview.
+
+---
 
 ## 🛠️ Tech Stack
 

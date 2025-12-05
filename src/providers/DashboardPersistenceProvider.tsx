@@ -1,7 +1,6 @@
 "use client";
 
 import { ReactNode } from "react";
-import { useDashboardPersistence } from "@/src/hooks";
 
 interface DashboardPersistenceProps {
   children: ReactNode;
@@ -10,12 +9,14 @@ interface DashboardPersistenceProps {
 /**
  * Component that wraps children and handles dashboard state persistence
  * Uses Zustand for state management with localStorage persistence
+ * 
+ * NOTE: This component is deprecated. Zustand persist middleware handles 
+ * persistence automatically. This wrapper is kept for backwards compatibility.
  */
 export function DashboardPersistence({
   children,
 }: DashboardPersistenceProps) {
-  // Initialize dashboard persistence on mount
-  useDashboardPersistence();
+  // No longer needed - Zustand persist middleware handles persistence
 
   return <>{children}</>;
 }

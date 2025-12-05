@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/src/utils/logger";
+import {
+  prepareUpstreamHeaders,
+  addSecretToUrl,
+} from "@/src/utils/decryptionMiddleware";
+import { validateRequestSignature } from "@/src/utils/requestSigning";
 
 /**
  * Server-side Rate Limiting for API Proxy
@@ -148,6 +153,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Validate request signature to prevent replay attacks
+    // Normalize URL to just path + query (client signs with relative URL)
+    const fullUrl = new URL(request.url);
+    const normalizedUrl = fullUrl.pathname + fullUrl.search;
+    const signatureValidation = await validateRequestSignature(
+      "GET",
+      normalizedUrl,
+      request.headers
+    );
+
+    if (!signatureValidation.valid) {
+      logger.warn("Request signature validation failed", {
+        error: signatureValidation.error,
+        url: targetUrl,
+      });
+      return NextResponse.json(
+        {
+          error: signatureValidation.error || "Invalid request signature",
+          category: "SIGNATURE_VALIDATION_FAILED",
+        },
+        { status: 401 }
+      );
+    }
+
     // Extract domain for rate limiting
     const urlObj = new URL(targetUrl);
     const domain = urlObj.hostname;
@@ -180,21 +209,28 @@ export async function GET(request: NextRequest) {
     // Get headers from the request
     const headers: Record<string, string> = {};
 
-    // Copy relevant headers from the original request
-    const authHeader = request.headers.get("authorization");
-    if (authHeader) {
-      headers["Authorization"] = authHeader;
+    // Prepare headers with decrypted secrets (if present)
+    try {
+      const upstreamHeaders = prepareUpstreamHeaders(request.headers);
+      Object.assign(headers, upstreamHeaders);
+
+      logger.info(`Proxying request to: ${targetUrl}`, {
+        hasEncryptedSecret: request.headers.has("X-Encrypted-Secret"),
+        headers: Object.keys(headers),
+      });
+    } catch (error) {
+      logger.error("Failed to prepare upstream headers", { error });
+      return NextResponse.json(
+        {
+          error: "Failed to process authentication",
+          category: "DECRYPTION_ERROR",
+        },
+        { status: 400 }
+      );
     }
 
-    const apiKeyHeader = request.headers.get("x-api-key");
-    if (apiKeyHeader) {
-      headers["X-Api-Key"] = apiKeyHeader;
-    }
-
-    logger.info(`Proxying request to: ${targetUrl}`, { 
-      hasApiKey: !!apiKeyHeader,
-      headers: Object.keys(headers)
-    });
+    // Add secret to URL if required (for query param authentication)
+    const finalUrl = addSecretToUrl(targetUrl, request.headers);
     logger.debug(`Rate limit status for ${rateLimitKey}`, getRateLimitStatus(rateLimitKey, 60, 60000));
 
     // Make the API request with timeout
@@ -203,11 +239,9 @@ export async function GET(request: NextRequest) {
 
     let response: Response;
     try {
-      response = await fetch(targetUrl, {
+      response = await fetch(finalUrl, {
         method: "GET",
         headers: {
-          "User-Agent": "FinBoard/1.0",
-          Accept: "application/json",
           ...headers,
         },
         signal: controller.signal,

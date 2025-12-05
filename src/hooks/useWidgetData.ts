@@ -22,6 +22,9 @@ import {
   getRateLimiterForUrl,
   waitForRateLimitReset,
   type ColumnDefinition,
+  prepareProxyHeaders,
+  prepareProxyUrl,
+  addSignatureHeaders,
 } from "@/src/utils";
 
 interface WidgetDataResult {
@@ -159,13 +162,23 @@ const fetchWidgetData = async (
       widget.apiUrl.includes("alphavantage.co") ||
       widget.apiUrl.includes("indianapi.in");
 
+    // Prepare URL with encrypted params if using proxy
+    let targetUrl = widget.apiUrl;
+    let encryptedParams: Array<{ keyName: string; value: string }> = [];
+    
+    if (needsProxy) {
+      const urlInfo = prepareProxyUrl(widget.apiUrl);
+      targetUrl = urlInfo.url; // URL with encrypted params removed
+      encryptedParams = urlInfo.encryptedParams;
+    }
+
     const requestUrl = needsProxy
-      ? `/api/proxy?url=${encodeURIComponent(widget.apiUrl)}`
-      : widget.apiUrl;
+      ? `/api/proxy?url=${encodeURIComponent(targetUrl)}`
+      : targetUrl;
 
     console.log(
       `[Fetch Widget] Fetching data for ${widget.title} (attempt ${retryAttempt + 1})`,
-      { url: widget.apiUrl, needsProxy }
+      { url: widget.apiUrl, needsProxy, hasEncryptedParams: encryptedParams.length > 0 }
     );
 
     // Fetch with timeout
@@ -174,13 +187,42 @@ const fetchWidgetData = async (
 
     let response: Response;
     try {
-      console.log('[Widget Data] Fetching with headers:', widget.headers);
+      // Prepare headers with encryption if using proxy
+      let requestHeaders = needsProxy
+        ? prepareProxyHeaders(widget.id, widget.headers)
+        : {
+            "Content-Type": "application/json",
+            ...(widget.headers || {}),
+          };
+
+      // Add encrypted URL params if any
+      if (needsProxy && encryptedParams.length > 0) {
+        requestHeaders["X-Encrypted-Params"] = JSON.stringify(encryptedParams);
+      }
+
+      // Add HMAC signature for proxy requests to prevent replay attacks
+      if (needsProxy) {
+        try {
+          requestHeaders = await addSignatureHeaders(
+            "GET",
+            requestUrl,
+            requestHeaders
+          );
+        } catch (error) {
+          console.warn('[Widget Data] Failed to add request signature:', error);
+          // Continue without signature - proxy will reject if signatures required
+        }
+      }
+
+      console.log('[Widget Data] Fetching with encrypted data:', {
+        hasEncryptedSecrets: requestHeaders["X-Encrypted-Secrets"] ? true : false,
+        hasEncryptedParams: requestHeaders["X-Encrypted-Params"] ? true : false,
+        hasSignature: requestHeaders["X-Request-Signature"] ? true : false,
+      });
+
       response = await fetch(requestUrl, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          ...(widget.headers || {}),
-        },
+        headers: requestHeaders,
         signal: controller.signal,
       });
     } finally {
@@ -235,18 +277,14 @@ const fetchWidgetData = async (
           let data: unknown;
           const columns = transformedResponse.columns;
 
-          // Filter columns based on selectedFields if specified
-          let filteredColumns = columns;
-          if (widget.selectedFields && widget.selectedFields.length > 0) {
-            filteredColumns = columns.filter(col => 
-              widget.selectedFields!.includes(col.key)
-            );
-            console.log(`🔽 [Fetch Widget] Filtered columns from ${columns.length} to ${filteredColumns.length}:`, {
-              originalColumns: columns.map(c => c.key),
-              selectedFields: widget.selectedFields,
-              filteredColumns: filteredColumns.map(c => c.key)
-            });
-          }
+          // For transformed data, use all columns (don't filter)
+          // The selectedFields from widget creation use original API paths,
+          // but transformed data has normalized column keys (e.g., "open", "close", "date")
+          const filteredColumns = columns;
+          console.log(`📊 [Fetch Widget] Using all transformed columns (${columns.length}):`, {
+            columnKeys: columns.map(c => c.key),
+            note: 'Transformed data has normalized keys, ignoring selectedFields filter'
+          });
 
           // Transform based on widget type
           switch (widget.type) {
@@ -276,23 +314,13 @@ const fetchWidgetData = async (
               });
               break;
             case 'chart':
-              const chartData = getChartData(transformedResponse.data);
-              // Filter chart data to only include selected fields
-              if (widget.selectedFields && widget.selectedFields.length > 0 && Array.isArray(chartData)) {
-                data = chartData.map((row: Record<string, unknown>) => {
-                  const filteredRow: Record<string, unknown> = {};
-                  // Always include date field for x-axis
-                  if ('date' in row) filteredRow.date = row.date;
-                  widget.selectedFields!.forEach(field => {
-                    if (field in row) {
-                      filteredRow[field] = row[field];
-                    }
-                  });
-                  return filteredRow;
-                });
-              } else {
-                data = chartData;
-              }
+              // Use all data from transformed response for charts
+              // Transformation already provides clean, normalized data
+              data = getChartData(transformedResponse.data);
+              console.log(`📈 [Fetch Widget] Chart data prepared:`, {
+                rowCount: Array.isArray(data) ? data.length : 0,
+                columns: Array.isArray(data) && data.length > 0 ? Object.keys(data[0]) : []
+              });
               break;
             case 'card':
               data = getCardData(transformedResponse.data);
