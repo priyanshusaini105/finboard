@@ -456,7 +456,7 @@ export default function AddWidgetModal({
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                       >
-                        📈 Trending Stocks
+                        Trending Stocks
                       </motion.button>
                       <motion.button
                         type="button"
@@ -473,7 +473,7 @@ export default function AddWidgetModal({
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                       >
-                        📊 Indian API Chart
+                        Indian API Chart
                       </motion.button>
                       <motion.button
                         type="button"
@@ -490,7 +490,7 @@ export default function AddWidgetModal({
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                       >
-                        📊 Alpha Vantage
+                        Alpha Vantage
                       </motion.button>
                       <motion.button
                         type="button"
@@ -507,7 +507,7 @@ export default function AddWidgetModal({
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                       >
-                        📊 Finnhub Chart
+                        Finnhub Chart
                       </motion.button>
                       <motion.button
                         type="button"
@@ -524,7 +524,7 @@ export default function AddWidgetModal({
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                       >
-                        ⚡ Finnhub Real-Time WebSocket
+                        Finnhub Real-Time WebSocket
                       </motion.button>
                     </div>
                   </motion.div>
