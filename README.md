@@ -4,7 +4,7 @@
 
 ## 🎬 Live Demo
 
-[![Demo Video](./public/thumbnail-image.png)](https://player.cloudinary.com/embed/?cloud_name=dna0hel5p&public_id=finboard_qumd0k&profile=cld-default)
+[![Demo Video](https://raw.githubusercontent.com/priyanshusaini105/finboard/main/public/thumnail-image.png)](https://player.cloudinary.com/embed/?cloud_name=dna0hel5p&public_id=finboard_qumd0k&profile=cld-default)
 
 
 
